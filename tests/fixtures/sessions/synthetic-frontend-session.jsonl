@@ -1,0 +1,21 @@
+{"type":"human","message":{"role":"user","content":"hey, can you add a new button component to the design system?"}}
+{"type":"human","message":{"role":"user","content":"No, don't create a wrapper around shadcn Button. We only wrap when we're adding real custom behavior. Just use shadcn directly."}}
+{"type":"assistant","message":{"role":"assistant","content":"Got it, I'll use the shadcn Button component directly without creating a wrapper."}}
+{"type":"human","message":{"role":"user","content":"Always put API calls in features/*/api/ directory. Never in page components. This is our FSD rule."}}
+{"type":"assistant","message":{"role":"assistant","content":"Understood, I'll move the API call to features/auth/api/login.ts"}}
+{"type":"human","message":{"role":"user","content":"ok looks good"}}
+{"type":"human","message":{"role":"user","content":"yes"}}
+{"type":"human","message":{"role":"user","content":"For forms, always use zod schemas for validation. No manual if/else chains."}}
+{"type":"assistant","message":{"role":"assistant","content":"I'll create a zod schema for the login form validation."}}
+{"type":"human","message":{"role":"user","content":"Read `src/features/auth/ui/LoginForm.tsx` and tell me what's wrong"}}
+{"type":"human","message":{"role":"user","content":"We never use default exports. Always named exports. It makes refactoring much easier across the codebase."}}
+{"type":"assistant","message":{"role":"assistant","content":"Changed to named export: export function LoginForm()"}}
+{"type":"human","message":{"role":"user","content":"Alex is now reviewing backend PRs too, not just frontend. His scope expanded this month."}}
+{"type":"human","message":{"role":"user","content":"I prefer using pnpm workspace protocol for internal packages. Like workspace:* in package.json."}}
+{"type":"human","message":{"role":"user","content":"Marina said she wants Mermaid diagrams in specs instead of text descriptions. She finds them easier to scan."}}
+{"type":"human","message":{"role":"user","content":"Let's go with the second option"}}
+{"type":"assistant","message":{"role":"assistant","content":"Here are the options:\n1. CSS modules for component styles\n2. Tailwind utility classes with cn() helper\n3. styled-components\n\nI recommend option 2 for consistency with shadcn."}}
+{"type":"human","message":{"role":"user","content":"Use meaningful variable names please"}}
+{"type":"human","message":{"role":"user","content":"Handle errors properly in the API layer"}}
+{"type":"human","message":{"role":"user","content":"Team standup moved to 10:30am on Tuesdays now"}}
+{"type":"human","message":{"role":"user","content":"commit and push"}}
