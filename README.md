@@ -29,7 +29,16 @@ cp -r skills/end-of-week-report         ~/.claude/skills/
 cp -r skills/topic-research             ~/.claude/skills/
 ```
 
-No API keys, no config, no dependencies. Read [GETTING_STARTED.md](GETTING_STARTED.md) for setup and usage.
+Then add this to your project's `CLAUDE.md`:
+
+```markdown
+## Shadow Learning
+This project uses shadow learning. Before work involving judgment,
+read `patterns/*.md` and `entities/*.md` in the memory directory.
+When the user corrects you, note the correction explicitly.
+```
+
+No API keys, no config, no dependencies. Read [GETTING_STARTED.md](GETTING_STARTED.md) for the full guide.
 
 ---
 

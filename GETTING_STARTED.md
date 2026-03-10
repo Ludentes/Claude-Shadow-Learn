@@ -39,6 +39,28 @@ cp -r skills/topic-research             ~/.claude/skills/
 
 No API keys, no config, no dependencies. Skills read/write to Claude Code's built-in memory directory.
 
+### Bootstrap: Add to your project CLAUDE.md
+
+Add this snippet to your project's `CLAUDE.md` (or `.claude/CLAUDE.md`). It tells Claude that pattern files exist and should be consulted. Without it, Claude won't know to look.
+
+```markdown
+## Shadow Learning
+
+This project uses shadow learning. Learned patterns and entity context are stored in the auto memory directory.
+
+Before work that involves judgment (reviews, architecture, writing):
+- Read `patterns/*.md` files in the memory directory for domain-specific rules
+- Read `entities/*.md` files for context about people, services, or systems
+
+When the user corrects you, note the correction explicitly — it will be extracted later.
+```
+
+Copy-paste this into your CLAUDE.md. Adjust or expand as patterns accumulate — but keep it short. Long instructions get ignored under load ([evidence](docs/plans/2026-03-09-shadow-learning-process-design.md)).
+
+**Why this matters:** Without this snippet, Claude reads MEMORY.md (auto memory index) but doesn't know to proactively load pattern files before doing work. The snippet bridges that gap. It's intentionally minimal — the skills and pattern files do the heavy lifting.
+
+**Why not more?** Research shows detailed instructions in AGENTS.md/CLAUDE.md have diminishing returns (SkillsBench: comprehensive = -2.9pp). A short pointer to the files works better than inlining all the rules.
+
 ---
 
 ## Your First Session
