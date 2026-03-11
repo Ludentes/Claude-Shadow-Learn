@@ -68,7 +68,7 @@ For each user turn, determine if it is **signal** or **noise**.
 
 | Pattern | Type | Confidence | About |
 |---------|------|-----------|-------|
-| `@remember X` | fact | 1.0 | project (or user if starts with "I") |
+| `@remember X` / `Remember: X` | fact | 0.95 | project (or user if starts with "I") |
 | `I prefer/like/want/love X` | preference | 0.95 | user |
 | `I always/never X` | rule | 0.95 | user |
 | `We always/never/should X` | rule | 0.95 | team |
@@ -146,7 +146,7 @@ Group entries by destination:
 - Write in third person or imperative ("Use X", "Prefer Y", not "I prefer Y")
 - Include the key entity/technology name in the content
 - Keep each entry to one sentence where possible
-- Strip `@remember` prefix from fact content
+- Strip `@remember` / `Remember:` prefix from fact content
 - Omit empty sections
 
 ## Step 6: Write to staging area and confirm

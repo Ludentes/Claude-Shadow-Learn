@@ -76,10 +76,10 @@ For entries being kept, apply compression:
 
 ## Patterns (N files)
 - [frontend.md](patterns/frontend.md) — FSD, shadcn, imports (12 rules, 3 sessions)
-- [review-patterns.md](patterns/review-patterns.md) — thesis review (22 rules, 5 sessions)
+- [review-patterns.md](patterns/review-patterns.md) — code review (22 rules, 5 sessions)
 
 ## Entities (N tracked)
-- [people.md](entities/people.md) — Anna, Denis, Mikhail, Sophiya
+- [people.md](entities/people.md) — Alex, Marina, teammates
 
 ## Staging
 - [extracted-knowledge.md](extracted-knowledge.md) — N entries pending

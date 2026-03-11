@@ -11,7 +11,7 @@ Session 3: Claude tries, you correct a little
 Session 4+: Claude leads, you spot-check
 ```
 
-Validated across 4 thesis reviews where corrections dropped from many → few → minimal.
+Validated across 4 real-world reviews where corrections dropped from many → few → minimal.
 
 ---
 
@@ -53,9 +53,9 @@ Shadow learning organizes knowledge into structured files inside Claude Code's a
 ├── MEMORY.md              # Index — always loaded (<200 lines)
 ├── patterns/              # Domain rules (<150 lines each)
 │   ├── frontend.md        #   FSD, shadcn, import rules
-│   └── review-patterns.md #   Thesis review calibration
+│   └── code-review.md     #   Review style calibration
 ├── entities/              # Per-entity context
-│   └── people.md          #   Denis, Anna, teammates...
+│   └── people.md          #   Teammates, clients...
 └── extracted-knowledge.md # Staging area
 ```
 
@@ -83,7 +83,7 @@ Only knowledge specific to your team/project. **The test:** would a senior dev a
 
 | Skill | Invoke | What it does |
 |---|---|---|
-| `thesis-review` | `/thesis-review [student]` | VKR review with section-by-section correction loop |
+| `thesis-review` | `/thesis-review [student]` | Academic review with correction loop ([example](examples/thesis-review/)) |
 
 Learning skills enforce the full cycle: load patterns → apply → get corrected → update patterns. Create your own from `skills/_template/`.
 
@@ -162,7 +162,7 @@ Key choices backed by research (see [design doc](docs/plans/2026-03-09-shadow-le
 | Keep pattern files <150 lines | SkillsBench: compact +18.8pp vs comprehensive -2.9pp |
 | 2-3 skills per domain max | SkillsBench: optimal count = +18.6pp |
 | Hard rules via hooks, not memory | AGENTS.md eval: instructions get ignored under load |
-| Human reviews, not gates | Thesis review validation: non-blocking review worked |
+| Human reviews, not gates | Review validation: non-blocking review worked |
 
 ---
 

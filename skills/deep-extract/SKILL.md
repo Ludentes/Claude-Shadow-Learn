@@ -17,7 +17,7 @@ Use `/session-knowledge-extract` instead if you want the free (no API key) versi
 
 ```bash
 SHADOW_LEARN_DIR="${SHADOW_LEARN_DIR:-$HOME/tools/claude-shadow-learn}"
-test -f "$SHADOW_LEARN_DIR/scripts/run-pipeline-on-list.ts" || { echo "ERROR: claude-shadow-learn not found at $SHADOW_LEARN_DIR"; exit 1; }
+test -f "$SHADOW_LEARN_DIR/pipeline/scripts/run-pipeline-on-list.ts" || { echo "ERROR: claude-shadow-learn not found at $SHADOW_LEARN_DIR"; exit 1; }
 test -n "$OPENROUTER_API_KEY" || { echo "ERROR: OPENROUTER_API_KEY not set"; exit 1; }
 echo "OK"
 ```
@@ -55,7 +55,7 @@ Note what's already extracted to avoid duplicates in Step 5.
 ```bash
 STORE="$HOME/.claude/memory${CWD}/entries.jsonl"
 
-pnpm --dir "$SHADOW_LEARN_DIR" tsx scripts/run-pipeline-on-list.ts \
+pnpm --dir "$SHADOW_LEARN_DIR/pipeline" tsx scripts/run-pipeline-on-list.ts \
   --sessions /tmp/todays-sessions.txt \
   --store "$STORE"
 ```

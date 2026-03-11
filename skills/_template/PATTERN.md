@@ -1,6 +1,6 @@
 # [Domain Name] Patterns
 
-> Source: [which skill populates this — e.g., /thesis-review, /pm-pipeline]
+> Source: [which skill populates this — e.g., /code-review, /pm-pipeline]
 > Last updated: [date]
 > Sessions learned from: 0
 

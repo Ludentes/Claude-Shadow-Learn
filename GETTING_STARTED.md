@@ -85,7 +85,7 @@ Session 3: Claude tries, you correct less  → Patterns are calibrated. Fewer co
 Session 4+: Claude leads, you spot-check   → Claude handles routine judgment. You catch edge cases.
 ```
 
-This curve repeats for every new domain — code reviews, PM workflows, writing, anything with repeatable judgment. Validated across 4 thesis reviews where corrections dropped from many → few → minimal.
+This curve repeats for every new domain — code reviews, PM workflows, writing, anything with repeatable judgment. Validated across 4 real-world reviews where corrections dropped from many → few → minimal.
 
 **What "leads" means:** Claude makes judgment calls (tone, structure, what to flag, what to skip) based on accumulated patterns. You review output rather than directing each step.
 
@@ -102,7 +102,7 @@ Your corrections are the training signal. Their quality determines how fast and 
 | "No, always do X" | A new rule |
 | "Not X, do Y instead" | A preference |
 | "This is too strict, relax it" | Calibration of existing pattern |
-| "For Denis, do X differently" | Per-entity note (not a general rule) |
+| "For Alex, do X differently" | Per-entity note (not a general rule) |
 
 ### The golden correction format
 
@@ -137,9 +137,9 @@ Your corrections are the training signal. Their quality determines how fast and 
 ├── MEMORY.md              # Index — always loaded (<200 lines)
 ├── patterns/              # Domain rules (<150 lines each)
 │   ├── frontend.md        #   FSD, shadcn, import rules
-│   └── review-patterns.md #   Thesis review calibration
+│   └── code-review.md     #   Review style calibration
 ├── entities/              # Per-entity context
-│   └── people.md          #   Denis, Anna, teammates...
+│   └── people.md          #   Teammates, clients...
 └── extracted-knowledge.md # Staging area from /session-knowledge-extract
 ```
 
@@ -148,7 +148,7 @@ Your corrections are the training signal. Their quality determines how fast and 
 Things **specific to your team/project** that Claude wouldn't know otherwise:
 - "We use FSD architecture with barrel exports in each slice"
 - "TDD is strict — test first, always, no exceptions"
-- "Denis follows docs literally — tell him to compress, not cut"
+- "Alex follows docs literally — tell him to compress, not cut"
 
 ### What does NOT get saved
 
@@ -235,16 +235,16 @@ Push back: "This is too strict" or "Not how we do it" is enough.
 
 Telling Claude "use meaningful variable names" or "handle errors properly" adds noise. Claude already knows these things. Save your corrections for things **specific to your project** that Claude wouldn't know otherwise.
 
-### Do: Use `@remember` for important facts
+### Do: Use `@remember` or "Remember:" for important facts
 
-When you want something explicitly captured:
+When you want something captured, prefix it with a clear signal:
 
 ```
 @remember We use PostgreSQL on port 15432, not the default 5432.
-@remember I always want tests to run against a real database, not mocks.
+Remember: I always want tests to run against a real database, not mocks.
 ```
 
-These are extracted with confidence 1.0 — highest priority.
+This isn't a built-in Claude Code command — it's a convention that `/session-knowledge-extract` looks for. Not guaranteed, but it's the strongest extraction signal available.
 
 ### Do: Review your memory files periodically
 
@@ -349,7 +349,7 @@ Memory is for things that require **judgment** — tone, structure, when to ask 
 
 | Skill | Invoke | What it does |
 |---|---|---|
-| `thesis-review` | `/thesis-review [student]` | VKR review with section-by-section correction loop |
+| `thesis-review` | `/thesis-review [student]` | Academic review with correction loop ([example](examples/thesis-review/)) |
 
 ### Utility Skills (fire-and-forget)
 
@@ -397,7 +397,7 @@ DURING WORK
   ✅ "Don't X. Instead Y. Because Z."        → Claude learns a rule
   ✅ "I prefer / always / never X"            → Claude learns a preference
   ✅ "Alex now does X" / "Marina wants Y"     → Claude learns about people
-  ✅ "@remember [fact]"                        → Guaranteed capture
+  ✅ "@remember [fact]" / "Remember: [rule]"   → Strongest extraction signal
   ✅ "Let's go with X because Y"              → Claude learns a decision + reasoning
   ❌ Silently fix Claude's output             → Claude learns nothing
   ❌ "This is wrong" / "Fix it"               → Too vague to learn from
