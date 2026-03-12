@@ -26,13 +26,38 @@ docs/playbooks/*.md     ← shadow learning writes (repeatable procedures)
 
 ---
 
-## Setup (2 minutes)
+## Setup
+
+### Option A: Use the setup script (recommended)
 
 ```bash
-# Copy skills into Claude Code
+# Linux / macOS
+git clone https://github.com/Ludentes/Claude-Shadow-Learn.git
+cd your-project
+/path/to/Claude-Shadow-Learn/shadow-learn.sh init
+```
+
+```powershell
+# Windows (PowerShell)
+git clone https://github.com/Ludentes/Claude-Shadow-Learn.git
+cd your-project
+\path\to\Claude-Shadow-Learn\shadow-learn.ps1 init
+```
+
+This creates the directory structure, copies skills, and offers to add the bootstrap snippet to your CLAUDE.md. Pass `-y` to skip prompts.
+
+### Option B: Do it manually
+
+```bash
+# 1. Copy skills into Claude Code
 cp -r skills/session-knowledge-extract  ~/.claude/skills/
 cp -r skills/memory-consolidate         ~/.claude/skills/
+
+# 2. Create directories
+mkdir -p docs/playbooks
 ```
+
+Then add the bootstrap snippet below to your project's `CLAUDE.md`.
 
 No API keys, no config, no dependencies. Skills read/write to Claude Code's built-in memory directory.
 
@@ -58,6 +83,15 @@ Copy-paste this into your CLAUDE.md. Adjust or expand as patterns accumulate —
 **Why this matters:** Without this snippet, Claude reads MEMORY.md (auto memory index) but doesn't know to proactively load pattern files before doing work. The snippet bridges that gap. It's intentionally minimal — the skills and pattern files do the heavy lifting.
 
 **Why not more?** Research shows detailed instructions in AGENTS.md/CLAUDE.md have diminishing returns (SkillsBench: comprehensive = -2.9pp). A short pointer to the files works better than inlining all the rules.
+
+### Optional: Auto-extract on session end
+
+```bash
+./shadow-learn.sh install-hooks    # Linux / macOS
+.\shadow-learn.ps1 install-hooks   # Windows
+```
+
+This wires a Claude Code hook that runs `/session-knowledge-extract` when a session ends — no need to remember to run it manually.
 
 ---
 
@@ -188,7 +222,7 @@ Your corrections are the training signal. Their quality determines how fast and 
 ### File Organization
 
 ```
-~/.claude/projects/<project>/memory/
+~/.claude/projects/<project>/memory/     # Claude's memory (personal)
 ├── MEMORY.md              # Index — always loaded (<200 lines)
 ├── patterns/              # Domain rules (<150 lines each)
 │   ├── frontend.md        #   FSD, shadcn, import rules
@@ -196,6 +230,10 @@ Your corrections are the training signal. Their quality determines how fast and 
 ├── entities/              # Per-entity context
 │   └── people.md          #   Teammates, clients...
 └── extracted-knowledge.md # Staging area from /session-knowledge-extract
+
+docs/playbooks/            # Project repo (committed to git)
+├── deploy.md              #   Production deploy steps
+└── new-hire-setup.md      #   Onboarding checklist
 ```
 
 ### What gets saved
@@ -358,6 +396,15 @@ This promotes staged entries to their destination files, checks for bloat, and p
 
 Think of it like reviewing a PR from a junior developer who's been taking notes on how you work.
 
+### Check health anytime
+
+```bash
+./shadow-learn.sh health    # Linux / macOS
+.\shadow-learn.ps1 health   # Windows
+```
+
+Reports pattern/entity/playbook counts, line budget usage, extraction freshness, and bootstrap status.
+
 ---
 
 ## Creating a Learning Skill
@@ -476,11 +523,16 @@ END OF DAY
 WEEKLY
   /memory-consolidate                         → Routes, prunes, reviews
   Skim pattern files — edit anything wrong    → You are the source of truth
+
+ANYTIME
+  ./shadow-learn.sh health                    → Check if everything is working
 ```
 
 ---
 
 ## Troubleshooting
+
+Run `./shadow-learn.sh health` first — it catches most issues automatically.
 
 | Problem | Fix |
 |---|---|
@@ -489,3 +541,4 @@ WEEKLY
 | MEMORY.md over 200 lines | Run `/memory-consolidate` to prune and rebalance |
 | Pattern file over 150 lines | Run `/memory-consolidate` or manually prune |
 | Memory feels noisy | Review files — remove general knowledge entries |
+| Not sure if it's working | Run `./shadow-learn.sh health` to check status |
