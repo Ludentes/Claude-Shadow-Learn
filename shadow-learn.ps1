@@ -294,8 +294,10 @@ function Invoke-InstallHooks {
         matcher = ''
         hooks   = @(
             @{
-                type    = 'command'
-                command = "claude -p 'Run /session-knowledge-extract on the session that just ended. Write results without asking - apply automatically to extracted-knowledge.md.'"
+                type          = 'command'
+                command       = "claude -p 'Run /session-knowledge-extract on the session that just ended. Write results without asking - apply automatically to extracted-knowledge.md.'"
+                timeout       = 300
+                statusMessage = 'Extracting session knowledge…'
             }
         )
     }
