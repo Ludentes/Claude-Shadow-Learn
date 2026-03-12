@@ -10,19 +10,31 @@ Generate a structured summary of the week's work from git history, optionally en
 ## Step 1: Gather git commits for the week
 
 ```bash
-# Commits since last Monday (handles running any day of the week)
-MONDAY=$(date -d "last monday" +%Y-%m-%d 2>/dev/null || date -v-monday +%Y-%m-%d 2>/dev/null)
-git log --since="$MONDAY 00:00:00" --format="%ad %h %s" --date=short --no-merges
+# Identify the current user
+ME=$(git config user.name)
+
+# Determine this week's Monday (works whether today is Monday or not)
+DOW=$(date +%u)  # 1=Monday, 7=Sunday
+if [ "$DOW" -eq 1 ]; then
+  MONDAY=$(date +%Y-%m-%d)
+else
+  MONDAY=$(date -d "last monday" +%Y-%m-%d 2>/dev/null || date -v-monday +%Y-%m-%d 2>/dev/null)
+fi
+
+# Commits since Monday by this author only
+git log --since="$MONDAY 00:00:00" --author="$ME" --format="%ad %h %s" --date=short --no-merges
 ```
 
 Also get a sense of scope:
 
 ```bash
-# Files changed this week
-git diff --stat $(git log --since="$MONDAY 00:00:00" --format="%H" | tail -1) HEAD 2>/dev/null | tail -5
+# Files changed this week (by this author's commits)
+FIRST_COMMIT=$(git log --since="$MONDAY 00:00:00" --author="$ME" --format="%H" --no-merges | tail -1)
+[ -n "$FIRST_COMMIT" ] && git diff --stat "$FIRST_COMMIT~1" HEAD 2>/dev/null | tail -5
 
-# PRs merged (if using gh CLI)
-gh pr list --state merged --search "merged:>=$MONDAY" 2>/dev/null | head -10
+# PRs merged by this author (if using gh CLI)
+GH_USER=$(gh api user --jq '.login' 2>/dev/null)
+[ -n "$GH_USER" ] && gh pr list --state merged --author "$GH_USER" --search "merged:>=$MONDAY" 2>/dev/null | head -10
 ```
 
 ## Step 2: Check for optional enrichment sources
@@ -31,7 +43,7 @@ Scan for docs and plans created or modified this week:
 
 ```bash
 find . \( -path ./node_modules -prune -o -path ./.git -prune \) \
-  -o -name "*.md" -newer /tmp -mtime -7 -print 2>/dev/null \
+  -o -name "*.md" -mtime -7 -print 2>/dev/null \
   | grep -E "(docs/|plans/|research/|CHANGELOG)" \
   | grep -v node_modules | head -15
 ```

@@ -10,8 +10,11 @@ Generate a concise summary of today's work from git history, optionally enriched
 ## Step 1: Gather git commits
 
 ```bash
-# Today's commits by this author
-git log --since="00:00:00" --format="%h %s" --no-merges
+# Identify the current user
+ME=$(git config user.name)
+
+# Today's commits by this author only
+git log --since="00:00:00" --author="$ME" --format="%h %s" --no-merges
 ```
 
 If that returns nothing (no commits today), also check for recent staged/unstaged work:
@@ -28,7 +31,7 @@ Look for context files modified today:
 ```bash
 # Docs/plans modified today
 find . \( -path ./node_modules -prune -o -path ./.git -prune \) \
-  -o -name "*.md" -newer /tmp -mtime -1 -print 2>/dev/null \
+  -o -name "*.md" -mtime -1 -print 2>/dev/null \
   | grep -v node_modules | head -20
 
 # Recent plan files
