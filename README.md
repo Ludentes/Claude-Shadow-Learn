@@ -17,10 +17,33 @@ Validated across 4 real-world reviews where corrections dropped from many → fe
 
 ## Quick Start
 
+### Option A: Use the setup script
+
 ```bash
-# Copy skills into Claude Code
+# Linux / macOS
+git clone https://github.com/Ludentes/Claude-Shadow-Learn.git
+cd Claude-Shadow-Learn
+./shadow-learn.sh init
+```
+
+```powershell
+# Windows (PowerShell)
+git clone https://github.com/Ludentes/Claude-Shadow-Learn.git
+cd Claude-Shadow-Learn
+.\shadow-learn.ps1 init
+```
+
+This creates the directory structure, copies skills, and adds the bootstrap snippet to your project's CLAUDE.md. Pass `-y` to skip prompts.
+
+### Option B: Do it manually
+
+```bash
+# 1. Copy skills into Claude Code
 cp -r skills/session-knowledge-extract  ~/.claude/skills/
 cp -r skills/memory-consolidate         ~/.claude/skills/
+
+# 2. Create directories
+mkdir -p docs/playbooks
 ```
 
 Then add this to your project's `CLAUDE.md`:
@@ -31,6 +54,13 @@ This project uses shadow learning. Before work involving judgment,
 read `patterns/*.md` and `entities/*.md` in the memory directory.
 Read `docs/playbooks/*.md` in the project repo for repeatable procedures.
 When the user corrects you, note the correction explicitly.
+```
+
+### Check status
+
+```bash
+./shadow-learn.sh health    # Linux / macOS
+.\shadow-learn.ps1 health   # Windows
 ```
 
 No API keys, no config, no dependencies. Read [GETTING_STARTED.md](GETTING_STARTED.md) for the full guide.
