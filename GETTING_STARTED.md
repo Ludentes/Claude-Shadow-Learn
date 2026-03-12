@@ -19,6 +19,9 @@ MEMORY.md               ← auto memory writes (build commands, corrections)
 patterns/*.md           ← shadow learning writes (domain rules, preferences)
 entities/*.md           ← shadow learning writes (people, services, state)
 extracted-knowledge.md  ← extraction safety net (staging area)
+
+docs/playbooks/*.md     ← shadow learning writes (repeatable procedures)
+                           lives in project repo, committed to git
 ```
 
 ---
@@ -29,12 +32,6 @@ extracted-knowledge.md  ← extraction safety net (staging area)
 # Copy skills into Claude Code
 cp -r skills/session-knowledge-extract  ~/.claude/skills/
 cp -r skills/memory-consolidate         ~/.claude/skills/
-
-# Optional: additional skills
-cp -r skills/deep-extract               ~/.claude/skills/
-cp -r skills/end-of-day-report          ~/.claude/skills/
-cp -r skills/end-of-week-report         ~/.claude/skills/
-cp -r skills/topic-research             ~/.claude/skills/
 ```
 
 No API keys, no config, no dependencies. Skills read/write to Claude Code's built-in memory directory.
@@ -51,6 +48,7 @@ This project uses shadow learning. Learned patterns and entity context are store
 Before work that involves judgment (reviews, architecture, writing):
 - Read `patterns/*.md` files in the memory directory for domain-specific rules
 - Read `entities/*.md` files for context about people, services, or systems
+- Read `docs/playbooks/*.md` in the project repo for repeatable procedures
 
 When the user corrects you, note the correction explicitly — it will be extracted later.
 ```
@@ -88,6 +86,63 @@ Session 4+: Claude leads, you spot-check   → Claude handles routine judgment. 
 This curve repeats for every new domain — code reviews, PM workflows, writing, anything with repeatable judgment. Validated across 4 real-world reviews where corrections dropped from many → few → minimal.
 
 **What "leads" means:** Claude makes judgment calls (tone, structure, what to flag, what to skip) based on accumulated patterns. You review output rather than directing each step.
+
+---
+
+## Playbooks: Capturing What You Do, Not Just What You Know
+
+Patterns capture **rules** — "always X", "never Y", "prefer Z". But a lot of valuable knowledge lives in **procedures** — the steps you follow to deploy, debug, set up a new machine, cut a release, onboard a teammate, generate a weekly report.
+
+These are called **playbooks** (also known as runbooks). They're not just for SRE or DevOps. Every team has operational procedures that live in someone's head:
+
+- How to deploy to production (and what to check after)
+- How to set up a dev machine from scratch
+- How to create a sprint in GitLab and assign tasks
+- How to generate the monthly client report
+- Morning standup routine — what to check, in what order
+- How to run a Makefile for a specific build target
+- How to onboard a new team member
+
+These procedures are invisible until someone leaves or is on vacation. Then everyone scrambles.
+
+**Shadow learning captures playbooks the same way it captures patterns** — by watching you work. When you walk through a deploy with Claude, the extraction pipeline picks up the steps and routes them to `docs/playbooks/` in your project repo. Next time, Claude already knows the procedure.
+
+Unlike patterns and entities (which live in Claude's memory directory), **playbooks live in your project repo** — committed to git, visible in code review, available to every teammate. They're project documentation, not personal memory.
+
+### What makes a good playbook
+
+A playbook is worth capturing when:
+- You've done it **more than once** (or plan to)
+- The steps **matter** — wrong order or missed step causes problems
+- Someone else might need to do it when you're unavailable
+
+A playbook is NOT worth capturing when:
+- It's a one-off (unique debug session, one-time migration)
+- It's trivial (a single command everyone knows)
+- It changes every time (no stable core steps)
+
+### Two sources of playbooks
+
+Playbooks track their origin via frontmatter:
+
+| Source | How it's created | Status | Trust level |
+|---|---|---|---|
+| `authored` | You explicitly ask: "write a playbook for deploy" | `reviewed` | Trusted immediately |
+| `extracted` | Auto-captured from session narration | `draft` | Needs your review |
+
+This matters because auto-extracted playbooks may have gaps or wrong ordering. The `status: draft` marker tells Claude (and teammates) to follow with caution until someone reviews and upgrades it to `reviewed`.
+
+### How playbooks emerge
+
+You don't need to sit down and write playbooks. They emerge naturally:
+
+1. You do something operational with Claude — deploy, setup, debug
+2. You narrate what you're doing (see habits below)
+3. `/session-knowledge-extract` picks up the procedure and routes it to `docs/playbooks/`
+4. `/memory-consolidate` merges similar procedures and cleans up
+5. Next time you (or a teammate) needs to do it, Claude already knows the steps
+
+The more you narrate, the faster playbooks accumulate. After a few weeks, you have an operational knowledge base that didn't require any dedicated documentation effort.
 
 ---
 
@@ -199,6 +254,20 @@ When talking about teammates, clients, or services, use names and say what's rel
 - "The billing service uses event sourcing — don't assume CRUD."
 
 Entity context helps Claude calibrate its output per person or per system.
+
+### Do: Narrate operational tasks
+
+When you're doing something operational — deploying, setting up, debugging, releasing — talk through the steps:
+
+```
+"First I check the CI pipeline is green. Then I merge to main.
+ Then I SSH into prod and run deploy.sh. After that I check
+ the health endpoint and tail the logs for 2 minutes."
+```
+
+This is how playbooks get created. If you do it silently, Claude sees tool calls but misses the procedure. If you narrate, the extraction pipeline captures the steps and builds a playbook automatically.
+
+**Key insight:** Playbooks aren't just for DevOps. Any repeatable procedure — creating GitLab issues, generating reports, running a build, setting up a local environment — is worth narrating the first time you do it with Claude.
 
 ### Do: Explain decisions
 
@@ -343,6 +412,18 @@ Memory is for things that require **judgment** — tone, structure, when to ask 
 
 ---
 
+## Watch for Sycophancy
+
+As Claude learns your preferences via pattern and entity files, it may start agreeing with you more and pushing back less. Research shows condensed user profiles significantly increase LLM agreeableness (MIT, Feb 2025). This is the opposite of what shadow learning aims for — the goal is calibration, not validation. If Claude stops challenging you, the learning loop breaks.
+
+**Watch for:** Claude agreeing too readily, not flagging questionable decisions, or echoing your preferences back as universal truths.
+
+**Test periodically:** Make a deliberately wrong choice (bad architecture, skipped tests) and see if Claude flags it. If it doesn't, your patterns may be too preference-heavy.
+
+**Mitigate:** Prefer factual and procedural entries in your patterns (port numbers, architecture decisions, tool choices, deploy steps) over opinion and preference entries (style, tone, formatting). Facts don't increase agreeableness; preferences do.
+
+---
+
 ## Skills Included
 
 ### Learning Skills (have LEARN step, link to pattern files)
@@ -357,22 +438,6 @@ Memory is for things that require **judgment** — tone, structure, when to ask 
 |---|---|---|
 | `session-knowledge-extract` | `/session-knowledge-extract` | Daily extraction safety net (free) |
 | `memory-consolidate` | `/memory-consolidate` | Weekly routing, pruning, review |
-| `deep-extract` | `/deep-extract` | Cloud LLM extraction (~$0.05/session) |
-| `topic-research` | `/topic-research [topic]` | Web research with citations |
-| `end-of-day-report` | `/end-of-day-report` | Standup summary from git |
-| `end-of-week-report` | `/end-of-week-report` | Weekly summary from git |
-
----
-
-## Choosing Between Free and Cloud Extraction
-
-| | `/session-knowledge-extract` | `/deep-extract` |
-|---|---|---|
-| API key required | No | Yes (OpenRouter) |
-| Recall | ~55% | ~95% |
-| Speed | Instant | 5–15 s/session |
-| Cost | Free | ~$0.05/session |
-| Good for | Daily use, air-gapped | Historical catch-up, max recall |
 
 ---
 
@@ -397,6 +462,7 @@ DURING WORK
   ✅ "Don't X. Instead Y. Because Z."        → Claude learns a rule
   ✅ "I prefer / always / never X"            → Claude learns a preference
   ✅ "Alex now does X" / "Marina wants Y"     → Claude learns about people
+  ✅ "First I do X, then Y, then Z"           → Claude learns a playbook
   ✅ "@remember [fact]" / "Remember: [rule]"   → Strongest extraction signal
   ✅ "Let's go with X because Y"              → Claude learns a decision + reasoning
   ❌ Silently fix Claude's output             → Claude learns nothing
@@ -422,5 +488,4 @@ WEEKLY
 | Skills not appearing | Confirm: `~/.claude/skills/<name>/SKILL.md` must exist |
 | MEMORY.md over 200 lines | Run `/memory-consolidate` to prune and rebalance |
 | Pattern file over 150 lines | Run `/memory-consolidate` or manually prune |
-| `OPENROUTER_API_KEY` missing | Only needed for `/deep-extract`. Set in `.env` |
 | Memory feels noisy | Review files — remove general knowledge entries |

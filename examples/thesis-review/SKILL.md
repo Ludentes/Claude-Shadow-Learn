@@ -39,6 +39,7 @@ MEMORY_DIR="$HOME/.claude/projects/$(echo $(pwd) | tr '/' '-')/memory"
 |---|---|---|
 | `$MEMORY_DIR/patterns/review-patterns.md` | Learned review rules — your primary instruction set | Switch to learning mode (user leads) |
 | `$MEMORY_DIR/entities/students.md` | Per-student context, history, notes | Ask user for student info |
+
 | VKR guidelines (path in students.md) | Department requirements | Proceed without — patterns encode the important parts |
 
 **Before proceeding**, mentally note:

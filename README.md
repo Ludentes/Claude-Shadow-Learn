@@ -21,12 +21,6 @@ Validated across 4 real-world reviews where corrections dropped from many → fe
 # Copy skills into Claude Code
 cp -r skills/session-knowledge-extract  ~/.claude/skills/
 cp -r skills/memory-consolidate         ~/.claude/skills/
-
-# Optional
-cp -r skills/deep-extract               ~/.claude/skills/
-cp -r skills/end-of-day-report          ~/.claude/skills/
-cp -r skills/end-of-week-report         ~/.claude/skills/
-cp -r skills/topic-research             ~/.claude/skills/
 ```
 
 Then add this to your project's `CLAUDE.md`:
@@ -35,6 +29,7 @@ Then add this to your project's `CLAUDE.md`:
 ## Shadow Learning
 This project uses shadow learning. Before work involving judgment,
 read `patterns/*.md` and `entities/*.md` in the memory directory.
+Read `docs/playbooks/*.md` in the project repo for repeatable procedures.
 When the user corrects you, note the correction explicitly.
 ```
 
@@ -49,7 +44,7 @@ No API keys, no config, no dependencies. Read [GETTING_STARTED.md](GETTING_START
 Shadow learning organizes knowledge into structured files inside Claude Code's auto memory directory:
 
 ```
-~/.claude/projects/<project>/memory/
+~/.claude/projects/<project>/memory/     # Claude's memory (personal)
 ├── MEMORY.md              # Index — always loaded (<200 lines)
 ├── patterns/              # Domain rules (<150 lines each)
 │   ├── frontend.md        #   FSD, shadcn, import rules
@@ -57,9 +52,13 @@ Shadow learning organizes knowledge into structured files inside Claude Code's a
 ├── entities/              # Per-entity context
 │   └── people.md          #   Teammates, clients...
 └── extracted-knowledge.md # Staging area
+
+docs/playbooks/            # Project repo (committed to git)
+├── deploy.md              #   Production deploy steps
+└── new-hire-setup.md      #   Onboarding checklist
 ```
 
-**Patterns** are domain-specific rules Claude applies during work. **Entities** are context about people, services, or systems. Both are populated through the correction loop.
+**Patterns** are domain-specific rules Claude applies during work. **Entities** are context about people, services, or systems. Both live in Claude's memory directory. **Playbooks** are repeatable procedures — deploy, setup, release, anything you do more than once. They live in the project repo (`docs/playbooks/`) so the whole team benefits.
 
 ### The Correction Loop
 
@@ -93,10 +92,6 @@ Learning skills enforce the full cycle: load patterns → apply → get correcte
 |---|---|---|
 | `session-knowledge-extract` | `/session-knowledge-extract` | Daily extraction safety net (free) |
 | `memory-consolidate` | `/memory-consolidate` | Weekly routing, pruning, review |
-| `deep-extract` | `/deep-extract` | Cloud LLM extraction (~$0.05/session) |
-| `topic-research` | `/topic-research [topic]` | Web research with citations |
-| `end-of-day-report` | `/end-of-day-report` | Standup summary from git |
-| `end-of-week-report` | `/end-of-week-report` | Weekly summary from git |
 
 ---
 
@@ -164,14 +159,3 @@ Key choices backed by research (see [design doc](docs/plans/2026-03-09-shadow-le
 | Hard rules via hooks, not memory | AGENTS.md eval: instructions get ignored under load |
 | Human reviews, not gates | Review validation: non-blocking review worked |
 
----
-
-## Extraction: Free vs Cloud
-
-| | `/session-knowledge-extract` | `/deep-extract` |
-|---|---|---|
-| API key required | No | Yes (OpenRouter) |
-| Recall | ~55% | ~95% |
-| Speed | Instant | 5–15 s/session |
-| Cost | Free | ~$0.05/session |
-| Good for | Daily use, air-gapped | Historical catch-up, max recall |

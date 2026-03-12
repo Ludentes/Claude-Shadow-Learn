@@ -115,10 +115,15 @@ Also deduplicate within the extracted batch — keep only one entry per distinct
 Each entry gets a destination tag based on its type. This tells `/memory-consolidate` where to route it.
 
 **Destination rules:**
-- Domain rules, preferences, process steps → `patterns/[domain].md`
-- Per-person/service context, state → `entities/[name].md`
+- Domain rules, preferences, style → `patterns/[domain].md` (memory dir)
+- Repeatable multi-step procedures → `docs/playbooks/[task].md` (project repo)
+- Per-person/service context, state → `entities/[name].md` (memory dir)
 - General knowledge the model already knows → `skip`
 - Can't classify → `unsorted`
+
+**Procedure → playbook test:** If the extracted procedure has 3+ steps and could be reused (deploy, setup, debug, release, report), route to `docs/playbooks/`. If it's a process rule ("always X before Y"), route to `patterns/`.
+
+**Playbook source tagging:** Extracted playbooks get `source: extracted, status: draft` frontmatter. They need user review before being trusted. User-authored playbooks (explicit "write a playbook for X") get `source: authored, status: reviewed`.
 
 **The "different senior dev" test:** Would a senior dev at a different company, on a different project in the same stack, do this differently? If NO → tag as `skip`. General programming knowledge adds noise.
 
@@ -130,7 +135,10 @@ Group entries by destination:
 ## Extracted [date]
 
 ### → patterns/[domain].md
-- [domain-specific rules, preferences, process steps]
+- [domain-specific rules, preferences, style]
+
+### → docs/playbooks/[task].md (source: extracted, status: draft)
+- [repeatable multi-step procedures]
 
 ### → entities/[name].md
 - [per-person or per-service context, state updates]
@@ -147,6 +155,7 @@ Group entries by destination:
 - Include the key entity/technology name in the content
 - Keep each entry to one sentence where possible
 - Strip `@remember` / `Remember:` prefix from fact content
+- Prefer factual and procedural entries over preference/opinion entries. Factual: "PostgreSQL on port 15432". Procedural: "Deploy requires CI green first". Preference (use sparingly): "Prefers terse commit messages".
 - Omit empty sections
 
 ## Step 6: Write to staging area and confirm

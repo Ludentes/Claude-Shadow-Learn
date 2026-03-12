@@ -14,7 +14,7 @@ MEMORY_DIR="$HOME/.claude/projects/$(echo $(pwd) | tr '/' '-')/memory"
 ls -laR "$MEMORY_DIR" 2>/dev/null
 ```
 
-Read everything: `MEMORY.md`, `patterns/*.md`, `entities/*.md`, `extracted-knowledge.md`. Also read project CLAUDE.md for overlap detection.
+Read everything: `MEMORY.md`, `patterns/*.md`, `entities/*.md`, `extracted-knowledge.md`. Also read `docs/playbooks/*.md` in the project repo for overlap detection and consolidation. Also read project CLAUDE.md for overlap detection.
 
 ## Step 2: Route staged entries
 
@@ -24,6 +24,12 @@ For each entry tagged `→ patterns/[file].md`:
 - Create the patterns/ directory and file if needed
 - Append to the appropriate section in the target pattern file
 - If no appropriate section exists, create one
+
+For each entry tagged `→ docs/playbooks/[file].md`:
+- Create `docs/playbooks/` in the project repo if needed
+- Use the playbook template with `source: extracted, status: draft` frontmatter
+- If the playbook already exists, merge new steps or update existing ones
+- Never overwrite an `authored` playbook with extracted content — append to Common Issues or Notes instead
 
 For each entry tagged `→ entities/[file].md`:
 - Create the entities/ directory and file if needed
@@ -50,6 +56,7 @@ Analyze all memory content (patterns/, entities/, MEMORY.md) and classify each e
 | **Remove (duplicate)** | Already in CLAUDE.md or another memory file | Memory says "Use Biome" and CLAUDE.md says "Use Biome 2.3" |
 | **Remove (general knowledge)** | Model already knows this | "Use meaningful variable names" |
 | **Move** | In wrong file or in MEMORY.md but belongs in patterns/entities | Detailed rule in MEMORY.md → move to patterns/ |
+| **Promote to playbook** | 2+ procedure entries with overlapping steps | Two "deploy" procedures → merge into docs/playbooks/deploy.md |
 
 **General knowledge filter:** Apply the "different senior dev" test. Would a senior dev at a different company do this differently? If no → remove it.
 
@@ -67,6 +74,7 @@ For entries being kept, apply compression:
 |---|---|---|
 | MEMORY.md | 200 lines | Move detail to pattern/entity files, keep index entries |
 | Each pattern file | 150 lines | Compress, merge, or split into two domain files |
+| Each playbook (docs/playbooks/) | 80 lines | Split into separate playbooks if over |
 | Entity files | No hard limit | But prune inactive entities (no interaction in 30+ days) |
 
 **MEMORY.md should be an index**, not a store. Format:

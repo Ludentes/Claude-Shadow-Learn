@@ -9,9 +9,6 @@ node_modules/
 # Private session data (symlinks to ~/.claude/)
 tests/fixtures/sessions/real-*.jsonl
 
-# Pipeline (optional cloud extraction, not needed for core skills)
-pipeline/
-
 # Build output
 dist/
 *.tsbuildinfo

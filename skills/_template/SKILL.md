@@ -27,6 +27,7 @@ Read ALL of these:
 |---|---|---|
 | `$MEMORY_DIR/patterns/[domain].md` | Learned rules — primary instruction set | Switch to cold start (user leads) |
 | `$MEMORY_DIR/entities/[relevant].md` | Per-entity context | Ask user for context |
+| `docs/playbooks/[relevant].md` | Repeatable procedures (project repo) | Skip — no procedures yet |
 
 Before proceeding, note:
 - How many rules exist (how mature are the patterns?)
