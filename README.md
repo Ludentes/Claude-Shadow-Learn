@@ -33,7 +33,7 @@ cd Claude-Shadow-Learn
 .\shadow-learn.ps1 init
 ```
 
-This creates the directory structure, copies skills, and adds the bootstrap snippet to your project's CLAUDE.md. Pass `-y` to skip prompts.
+This creates the directory structure, copies skills, and adds the bootstrap snippet to your project's CLAUDE.md and an AGENTS.md for cross-tool compatibility. Pass `-y` to skip prompts.
 
 ### Option B: Do it manually
 
@@ -46,7 +46,7 @@ cp -r skills/memory-consolidate         ~/.claude/skills/
 mkdir -p docs/playbooks
 ```
 
-Then add this to your project's `CLAUDE.md`:
+Then create an `AGENTS.md` (see [agents.md](https://agents.md/) standard) and add this to your project's `CLAUDE.md`:
 
 ```markdown
 ## Shadow Learning

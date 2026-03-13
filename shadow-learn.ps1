@@ -38,6 +38,26 @@ Before work that involves judgment (reviews, architecture, writing):
 When the user corrects you, note the correction explicitly — it will be extracted later.
 "@
 
+# --- AGENTS.md snippet (cross-tool) ---
+$AgentsSnippet = @"
+# AGENTS.md
+
+This project uses shadow learning for continuous improvement from user corrections.
+
+## Knowledge Store
+
+Before work that involves judgment (reviews, architecture, writing), check:
+- ``docs/playbooks/*.md`` — repeatable procedures (deploy, setup, release)
+
+When the user corrects your output, note the correction explicitly in your response.
+
+## Conventions
+
+- Hard rules (import order, commit format) belong in linters and hooks, not instructions
+- Memory is for things requiring judgment — tone, structure, quality bar
+- Keep instruction files concise — overly long files degrade agent performance
+"@
+
 # =============================================================================
 # INIT
 # =============================================================================
@@ -103,6 +123,30 @@ function Invoke-Init {
         else {
             Write-Warn 'Skipped. Add the bootstrap snippet manually later.'
             Write-Host '  See GETTING_STARTED.md for the snippet.'
+        }
+    }
+
+    # 5. AGENTS.md (cross-tool compatibility)
+    $agentsMd = 'AGENTS.md'
+    if (Test-Path $agentsMd) {
+        Write-Ok 'AGENTS.md already exists'
+    }
+    else {
+        $doAgents = $false
+        if ($y) {
+            $doAgents = $true
+        }
+        else {
+            $answer = Read-Host '  Create AGENTS.md for cross-tool compatibility? [y/N]'
+            if ($answer -match '^[Yy]$') { $doAgents = $true }
+        }
+
+        if ($doAgents) {
+            Set-Content -Path $agentsMd -Value $AgentsSnippet -Encoding UTF8
+            Write-Ok "Created $agentsMd"
+        }
+        else {
+            Write-Warn 'Skipped AGENTS.md. Create it manually if you use non-Claude agents.'
         }
     }
 
@@ -261,6 +305,16 @@ function Invoke-Health {
     else {
         Write-Fail 'No bootstrap in CLAUDE.md - run: .\shadow-learn.ps1 init'
         $failCount++
+    }
+
+    # 8. AGENTS.md (cross-tool)
+    if (Test-Path 'AGENTS.md') {
+        Write-Ok 'AGENTS.md present (cross-tool compatibility)'
+        $okCount++
+    }
+    else {
+        Write-Warn 'No AGENTS.md - run: .\shadow-learn.ps1 init'
+        $warnCount++
     }
 
     Write-Host ''

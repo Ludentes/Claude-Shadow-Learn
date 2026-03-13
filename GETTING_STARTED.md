@@ -15,6 +15,7 @@ Claude Code has built-in auto memory (`MEMORY.md`) that captures what Claude not
 
 ```
 CLAUDE.md               ← you write (team instructions, architecture)
+AGENTS.md               ← cross-tool agent instructions (Codex, Cursor, etc.)
 MEMORY.md               ← auto memory writes (build commands, corrections)
 patterns/*.md           ← shadow learning writes (domain rules, preferences)
 entities/*.md           ← shadow learning writes (people, services, state)
@@ -44,7 +45,7 @@ cd your-project
 \path\to\Claude-Shadow-Learn\shadow-learn.ps1 init
 ```
 
-This creates the directory structure, copies skills, and offers to add the bootstrap snippet to your CLAUDE.md. Pass `-y` to skip prompts.
+This creates the directory structure, copies skills, adds the bootstrap snippet to your CLAUDE.md, and creates an AGENTS.md for cross-tool compatibility. Pass `-y` to skip prompts.
 
 ### Option B: Do it manually
 
@@ -83,6 +84,15 @@ Copy-paste this into your CLAUDE.md. Adjust or expand as patterns accumulate —
 **Why this matters:** Without this snippet, Claude reads MEMORY.md (auto memory index) but doesn't know to proactively load pattern files before doing work. The snippet bridges that gap. It's intentionally minimal — the skills and pattern files do the heavy lifting.
 
 **Why not more?** Research shows detailed instructions in AGENTS.md/CLAUDE.md have diminishing returns (SkillsBench: comprehensive = -2.9pp). A short pointer to the files works better than inlining all the rules.
+
+### AGENTS.md: Cross-Tool Compatibility
+
+The init script also creates an `AGENTS.md` — an [emerging standard](https://agents.md/) for guiding AI coding agents across tools. Unlike CLAUDE.md (Claude-specific), AGENTS.md is read by OpenAI Codex, Cursor, Kilo Code, Factory, and others. Empirical research shows AGENTS.md reduces agent runtime by ~29% and tokens by ~17% ([arXiv 2601.20404](https://arxiv.org/abs/2601.20404)).
+
+**CLAUDE.md** holds Claude-specific features: shadow learning bootstrap, skills, hooks.
+**AGENTS.md** holds universal context: playbook pointers, conventions, correction instructions.
+
+Both files are short by design — [research shows](https://devcenter.upsun.com/posts/agents-md-less-is-more/) overly long instruction files degrade agent performance.
 
 ### Optional: Auto-extract on session end
 

@@ -44,6 +44,24 @@ Before work that involves judgment (reviews, architecture, writing):
 
 When the user corrects you, note the correction explicitly — it will be extracted later.'
 
+# --- AGENTS.md snippet (cross-tool) ---
+AGENTS_SNIPPET='# AGENTS.md
+
+This project uses shadow learning for continuous improvement from user corrections.
+
+## Knowledge Store
+
+Before work that involves judgment (reviews, architecture, writing), check:
+- `docs/playbooks/*.md` — repeatable procedures (deploy, setup, release)
+
+When the user corrects your output, note the correction explicitly in your response.
+
+## Conventions
+
+- Hard rules (import order, commit format) belong in linters and hooks, not instructions
+- Memory is for things requiring judgment — tone, structure, quality bar
+- Keep instruction files concise — overly long files degrade agent performance'
+
 # =============================================================================
 # INIT
 # =============================================================================
@@ -107,6 +125,27 @@ cmd_init() {
     else
       warn "Skipped. Add the bootstrap snippet manually later."
       echo "  See GETTING_STARTED.md for the snippet."
+    fi
+  fi
+
+  # 5. AGENTS.md (cross-tool compatibility)
+  local agents_md="AGENTS.md"
+  if [ -f "$agents_md" ]; then
+    ok "AGENTS.md already exists"
+  else
+    local do_agents=false
+    if $auto_yes; then
+      do_agents=true
+    else
+      read -r -p "  Create AGENTS.md for cross-tool compatibility? [y/N] " answer
+      [[ "$answer" =~ ^[Yy]$ ]] && do_agents=true
+    fi
+
+    if $do_agents; then
+      echo "$AGENTS_SNIPPET" > "$agents_md"
+      ok "Created $agents_md"
+    else
+      warn "Skipped AGENTS.md. Create it manually if you use non-Claude agents."
     fi
   fi
 
@@ -251,6 +290,15 @@ cmd_health() {
   else
     fail "No bootstrap in CLAUDE.md — run: ./shadow-learn.sh init"
     fail_count=$((fail_count + 1))
+  fi
+
+  # 8. AGENTS.md (cross-tool)
+  if [ -f "AGENTS.md" ]; then
+    ok "AGENTS.md present (cross-tool compatibility)"
+    ok_count=$((ok_count + 1))
+  else
+    warn "No AGENTS.md — run: ./shadow-learn.sh init"
+    warn_count=$((warn_count + 1))
   fi
 
   echo ""
