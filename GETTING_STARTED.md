@@ -540,6 +540,48 @@ ANYTIME
 
 ---
 
+## Agent Runtime: Shadow Learning for Simulated Agents
+
+If you're building **simulated developer or PM agents** that use Claude Code to do real work (e.g., Galatea beta-level simulations), see the `agent/` directory. It provides:
+
+- **Cold start bootstrap** — role-specific patterns so agents work from day 1 without prior experience
+- **Seeding from humans** — copy a real developer's shadow-learned patterns into an agent
+- **Work-to-knowledge** — after each completed task, extract reusable patterns automatically
+- **Per-agent isolation** — each agent gets its own memory directory, CLAUDE.md, and knowledge store
+
+### Quick start
+
+```bash
+# Initialize a developer agent
+./agent/init-agent.sh beki developer data/agents/beki \
+  --name Beki --domain "Expo / React Native"
+
+# Optionally seed from a real developer's memory
+./agent/seed-from-human.sh \
+  ~/.claude/projects/-home-dev-w-app/memory \
+  data/agents/beki/memory
+
+# Check health
+./agent/health-agent.sh data/agents/beki
+```
+
+### How agent learning differs
+
+Human shadow learning relies on explicit corrections ("Don't do X, do Y instead"). Simulated agents learn differently:
+
+1. **Cold start** — generic role patterns provide baseline behavior
+2. **Seeding** — optional bootstrap from human patterns for project-specific knowledge
+3. **Work-to-knowledge** — after each task completes, patterns are extracted from outcomes
+4. **Confidence scoring** — patterns start at 0.5 (first observation), increase on success, decrease on failure
+
+The agent doesn't need a human correcting it. It learns from its own work outcomes. When a human *does* provide feedback (via Galatea's Discord channel), corrections are weighted at 0.9 confidence — the strongest signal.
+
+### Integration
+
+The agent's generated `CLAUDE.md` and `memory/patterns/*.md` are designed for injection into Claude Code sessions via the coding adapter's system prompt. See [agent/README.md](agent/README.md) for code examples.
+
+---
+
 ## Troubleshooting
 
 Run `./shadow-learn.sh health` first — it catches most issues automatically.

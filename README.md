@@ -189,3 +189,36 @@ Key choices backed by research (see [design doc](docs/plans/2026-03-09-shadow-le
 | Hard rules via hooks, not memory | AGENTS.md eval: instructions get ignored under load |
 | Human reviews, not gates | Review validation: non-blocking review worked |
 
+---
+
+## Agent Runtime: Shadow Learning for Simulated Agents
+
+The `agent/` directory provides shadow learning for **simulated developer and PM agents** (e.g., [Galatea](https://github.com/Ludentes/galatea) beta-level simulations). These agents use Claude Code to do real work and accumulate knowledge over time.
+
+```bash
+# Initialize a developer agent (cold start)
+./agent/init-agent.sh beki developer data/agents/beki --name Beki
+
+# Initialize a PM agent
+./agent/init-agent.sh besa pm data/agents/besa --name Besa
+
+# Optionally seed from a real developer's patterns
+./agent/seed-from-human.sh ~/.claude/projects/-home-dev-w-app/memory data/agents/beki/memory
+
+# Check agent health
+./agent/health-agent.sh data/agents/beki
+```
+
+**How it differs from human shadow learning:**
+
+| Aspect | Human | Simulated Agent |
+|--------|-------|-----------------|
+| Knowledge source | User corrections | Task outcomes + feedback |
+| Bootstrap | Empty (user leads) | Cold start patterns or seeded from human |
+| Learning trigger | `/session-knowledge-extract` | `work-to-knowledge` after each task |
+| Review | Human reviews patterns weekly | Automated confidence scoring |
+
+The system works even with zero prior experience — cold start patterns provide a role-specific baseline (coding patterns for devs, product patterns for PMs). When seeded from a real developer's shadow-learned patterns, the agent starts with project-specific knowledge from day 1.
+
+See [agent/README.md](agent/README.md) for integration details with Galatea's coding adapter.
+
