@@ -684,6 +684,353 @@ Project name or brief description
 
 ---
 
+## Scenario 4: Long-Horizon Research / Investigation
+
+### Context
+
+- **User**: ML engineer (but the pattern applies to any long-running investigation — security audit, vendor evaluation, performance hunt, debugging a flaky production system over weeks)
+- **Project**: Choosing an embedding + retrieval strategy for a new semantic search feature. Three months of spikes, ablations, vendor comparisons, and one painful pivot.
+- **Goal**: Claude learns not just *what we decided* but *how to maintain its own memory* across a horizon longer than its context window. The user is more capable than Claude here because they remember March in May. The lesson is meta: copy that ability.
+
+This scenario is shaped differently from the first three. There, the human demonstrated **technique** (FSD, TDD, PM pipeline). Here, the human demonstrates **how to survive context loss** — and the patterns Claude captures include rules about its own memory hygiene.
+
+---
+
+### Phase 1: First Four Weeks — User Leads the Memory Discipline
+
+**Duration**: 4 weeks
+**Mode**: User runs the investigation. Claude assists with experiments and writeups. Most corrections are about how to *record*, not what to *do*.
+
+```
+Week 1: Hypothesis & Baseline
+├── User opens a new thread: "Can we drop our reranker if we switch to bge-m3?"
+├── Creates docs/research/2026-03-02-bge-m3-baseline.md with frontmatter:
+│   ├── status: live
+│   ├── topic: embedding-strategy
+│   ├── last_verified: 2026-03-02
+│   └── area: retrieval
+├── Creates docs/research/_topics/embedding-strategy.md — the topic index
+├── Adds MEMORY.md entry: "🧭 embedding-strategy — exploring bge-m3 vs current stack"
+├── User corrects Claude: "Don't summarize the doc into MEMORY.md. One line, link out."
+├── User runs the baseline eval, Claude helps with the harness
+├── Result: bge-m3 alone underperforms current stack by 4pp nDCG@10
+└── Commit: "research: bge-m3 baseline, underperforms current"
+
+Week 2: First Pivot Attempt
+├── User: "What if we add query expansion before bge-m3?"
+├── Claude proposes deleting last week's doc since the conclusion changed
+├── User: "No. Append-only. Mark it superseded, write a new dated doc."
+├── User shows the discipline:
+│   ├── Old doc gets superseded_by: 2026-03-09-query-expansion-bge-m3.md
+│   ├── New doc gets supersedes: 2026-03-02-bge-m3-baseline.md
+│   ├── Topic file updated to "current belief: query expansion + bge-m3 might close the gap"
+│   └── MEMORY.md entry unchanged — still one line, pointing at the topic
+├── Query expansion + bge-m3 ties the baseline. Not a win.
+└── Commit: "research: query expansion + bge-m3 ties baseline"
+
+Week 3: Falsification
+├── User: "Add a learned-sparse model (SPLADE) as a hybrid component"
+├── Five days of experiments, three dated docs
+├── Result: SPLADE + bge-m3 loses to current stack on the long-tail queries
+├── User writes the falsification doc explicitly:
+│   ├── docs/research/2026-03-23-splade-hybrid-falsified.md
+│   ├── status: live (the verdict is live, even though the approach is dead)
+│   ├── Body explains *why* it failed with the data that killed it
+│   └── Concludes with the pivot: "rerankers are doing more than we credited them for"
+├── User updates MEMORY.md:
+│   ├── Adds: "🛑 splade-hybrid — falsified 2026-03-23, rerankers irreplaceable on long-tail"
+│   └── Updates: "🧭 embedding-strategy — pivoting to reranker improvement"
+├── User: "Three weeks from now I will forget why we walked away. The dead-end note is the point."
+├── Claude proposes archiving the falsified doc. User: "No. It stays in research/, status:live, indexed."
+└── Commit: "research: SPLADE hybrid falsified, pivoting to reranker work"
+
+Week 4: New Direction — Reranker Quality
+├── User opens a sub-thread: improve the reranker rather than replace it
+├── Creates docs/research/_topics/reranker-tuning.md
+├── User cross-links: "see falsification at 2026-03-23 for why we're here"
+├── Three dated docs across the week: distillation experiments
+├── User catches Claude quoting an out-of-date baseline number from week 1:
+│   ├── "That baseline was on the old holdout split. Re-quote against current."
+│   ├── Pattern: never quote a baseline from its own log — re-eval on current holdout
+│   └── New rule added to patterns/research-discipline.md
+└── Commit: "research: distillation experiments, baseline re-verified"
+```
+
+### What Gets Captured (memory/patterns/research-discipline.md)
+
+```markdown
+# Long-Horizon Research Discipline
+
+## The Three-Layer Document Model
+- Dated evidence (docs/research/YYYY-MM-DD-*.md) — append-only, never edited substantively after settling
+- Topic indexes (docs/research/_topics/*.md) — mutable interpretation, "what we currently believe"
+- MEMORY.md — one-line triage with status icon + slug, points to topic file
+- Each layer rots at a different rate. Mixing them creates churn on stable docs or stale claims in the live index.
+
+## Frontmatter Trust Signals
+Every research/blog doc carries:
+- status: live | superseded | archived
+- topic: <topic-file-slug>
+- last_verified: ISO date — human signature on "still true"
+- supersedes: / superseded_by: when applicable
+- verified_against (architecture docs): repo + commit + paths
+
+## Append-Only Discipline
+- Never overwrite a dated doc to fix its conclusion
+- A superseded conclusion gets a new dated doc + supersedes/superseded_by pointers
+- Old doc stays in place — the audit trail is what lets future-us answer "why did we believe X in March?"
+
+## Falsification as a First-Class Outcome
+- When a hypothesis dies, write a dated doc that says explicitly why, with the data
+- MEMORY.md gets a 🛑 FALSIFIED entry naming the doc and pointing at the replacement approach
+- Never delete the falsified doc. It prevents re-exploring in three weeks.
+- A topic file may pivot; falsified branches stay searchable in one hop from MEMORY.md.
+
+## MEMORY.md Status Icons
+- 🧭 ACTIVE THREAD — currently working
+- 🛑 FALSIFIED — explored, ruled out, do not re-propose
+- 🚢 SHIPPED — landed in production, runbook exists
+- 📚 RESEARCH — completed investigation, conclusions live in topic file
+- 🆕 RULE — new project rule, applies going forward
+- Status icon signals load-bearing-ness at a glance. Triage tool, not knowledge store.
+
+## Read-Order on a Fresh Session
+1. MEMORY.md — scan for the thread's status icon and slug
+2. The linked topic file — current beliefs
+3. The most recent dated doc(s) referenced by the topic file — load-bearing detail
+4. The runbook, if a shipped artifact is involved
+5. git log --oneline -20 on the relevant subtree — catches anything since the topic file was last touched
+6. ONLY THEN read code
+
+Reading code before the topic file is how you re-propose approaches that were ruled out months ago.
+
+## Compaction-Safe Writing
+- Information that is not on disk does not exist. Save findings the moment they are produced, not "when the session ends."
+- Intermediates must fully reconstruct decision-relevant state: configs at top of every result dir, eval logs tied to a holdout fingerprint
+- Generation is resumable: skip-if-exists per output, append new plan cells rather than killing the run
+
+## Verification Discipline
+- Never quote a baseline from its own log — re-eval on current holdout
+- A metric is only as good as the question it can distinguish — symmetries hide failure modes
+- "Tests pass" without showing the green output is not evidence, it is a wish
+
+## Two-Strikes Refactoring
+- Don't backfill frontmatter or runbooks mechanically across the corpus
+- When a doc is substantively touched without frontmatter, add it then — the doc has earned the attention
+- Lazy/just-in-time. Each artifact earns the work when touched.
+
+## Feedback: Save the Why AND the Confirmation
+- Every correction memory carries: Rule / Why / How to apply
+- Save confirmations of non-obvious choices too — not just corrections
+- Saving only "don't do X" makes future-us progressively more timid; validated choices need explicit recording
+
+## Don't
+- Don't summarize a dated doc into MEMORY.md — one-line pointer only
+- Don't delete falsified docs — they prevent re-exploration
+- Don't quote a recalled function/flag/file name without re-checking it exists now
+- Don't propose approaches without reading the topic file first
+```
+
+### Phase 2: Weeks 5-8 — Claude Maintains Memory Under Supervision
+
+**Mode**: Claude takes over the mechanical discipline (frontmatter, MEMORY.md updates, supersedes pointers). User runs experiments and catches drift.
+
+```
+Week 5: New Spike — Cross-Encoder Distillation
+├── Claude (unprompted) creates docs/research/2026-03-30-cross-encoder-distill.md
+│   ├── Frontmatter populated correctly: status, topic, last_verified, area
+│   └── Adds MEMORY.md pointer with 🧭 ACTIVE THREAD icon
+├── User: "Good. Last time I had to write that scaffold for you."
+├── Claude runs distillation, writes intermediate parquet of eval results
+├── At session end, Claude updates topic file with new dated-doc reference
+└── User spot-checks. No corrections.
+
+Week 6: Stale Claim Caught
+├── User asks "What was our best nDCG@10 last month?"
+├── Claude quotes 0.612 from the 2026-03-23 falsification doc
+├── User: "Check the topic file. The holdout was re-cut on 2026-03-28."
+├── Claude re-reads the topic file — finds the holdout-change note
+├── Claude re-evaluates: actual number under new holdout is 0.587
+├── User: "This is exactly the trap. The doc said 'true on 2026-03-23'. It's now May."
+├── Update to research-discipline.md:
+│   ├── "Before quoting a number from a dated doc, check last_verified vs current holdout/config fingerprint"
+│   └── Captured as a rule, not a one-off
+└── No commit — discipline correction
+
+Week 7: Re-Proposed Dead Approach (Read-Order Violation)
+├── Claude, fresh session, asked "should we try learned sparse retrieval?"
+├── Without checking MEMORY.md first, Claude proposes SPLADE hybrid
+├── User: "We falsified that in March. Did you read MEMORY.md?"
+├── Claude acknowledges, reads MEMORY.md, finds 🛑 splade-hybrid entry
+├── Reads the falsification doc, summarizes why it died
+├── User: "Now you remember. Next time, read first."
+├── This is a calibration of an existing rule, not a new pattern
+├── research-discipline.md "Read-Order" section gets a worked example appended
+└── Claude proposes an *adjacent but distinct* approach instead
+
+Week 8: Confirmation Saved
+├── User decides to ship the distilled cross-encoder rather than chase one more pp
+├── User: "Ship at +2.3pp. We could chase more but the data says diminishing returns."
+├── Claude saves this as a confirmation memory:
+│   ├── Rule: "Ship when curve flattens; don't chase the last pp"
+│   ├── Why: "Three months in, opportunity cost > marginal gain. Validated by our own ablation curve."
+│   └── How to apply: when an investigation's gains-per-week halve twice in a row, propose shipping
+├── User: "Good. If you'd only saved corrections, future-you would over-iterate."
+└── Commit: "research: ship-or-iterate heuristic captured"
+```
+
+### Phase 3: Weeks 9-12 — Claude Leads, User Spot-Checks
+
+**Mode**: Claude maintains the research log, falsification index, and topic files independently. The shipped artifact gets a runbook.
+
+```
+Week 9-10: Productionization
+├── Distilled cross-encoder rolls to staging
+├── Claude writes docs/runbooks/semantic-search.md with frontmatter:
+│   ├── status: current
+│   ├── last_verified: 2026-05-04
+│   ├── verified_against: repo + commit + paths
+│   └── Pipeline diagram, CLI, failure modes, on-disk layout
+├── Updates MEMORY.md: 🚢 semantic-search SHIPPED → docs/runbooks/semantic-search.md
+├── Updates embedding-strategy topic file: status flips from "actively exploring" to "shipped, see runbook"
+└── User reviews runbook. One correction: "Add the holdout fingerprint to verified_against — we'll need it for re-evals."
+
+Week 11: A/B Result Triggers Re-Verification
+├── A/B test result comes back: +1.8pp business metric, p<0.05
+├── Claude (unprompted) appends an A/B section to the runbook
+├── Updates last_verified
+├── Creates docs/research/2026-05-18-semantic-search-ab.md as the dated evidence
+├── User: no corrections. Discipline is stable.
+└── Commit: "research: semantic search A/B confirms ship"
+
+Week 12: Cross-Thread Reference From a New Project
+├── New thread opens on a different feature: "Can we reuse the distilled cross-encoder for X?"
+├── Claude (fresh session) reads MEMORY.md first
+├── Finds 🚢 semantic-search → runbook
+├── Reads the runbook, then the most recent dated docs on the embedding-strategy topic
+├── Notes the holdout fingerprint and the diminishing-returns confirmation
+├── Proposes reuse with appropriate caveats from the prior investigation
+└── User: "This is what good memory looks like. You wouldn't have done this in March."
+```
+
+### Shadow Learning Scenarios
+
+#### SL-4.1: Falsification Discipline
+
+**Event**: A hypothesis dies. Claude proposes deleting the dated doc since "the conclusion changed."
+
+**User**: "No. Append-only. Mark it superseded, write a new dated doc. And add a 🛑 entry to MEMORY.md."
+
+**What happens**:
+1. The original doc keeps `status: live` if the *verdict* is still load-bearing (we now know this *doesn't* work — that's the live finding)
+2. Or `status: superseded` with `superseded_by:` if a newer investigation reframes the question
+3. MEMORY.md gets a 🛑 FALSIFIED entry pointing at the doc and at the replacement approach
+4. Pattern captured: "Never delete falsified docs. They prevent re-exploration."
+
+**Why this matters**: Without the falsification trail, week 7's "should we try SPLADE?" question gets answered by re-running the experiment. With it, the answer is one hop from MEMORY.md and takes 90 seconds.
+
+#### SL-4.2: Read-Order Violation
+
+**Event**: Claude, fresh session, proposes an approach that was ruled out two months ago. The patterns file exists. Claude didn't read it.
+
+**User**: "Did you read MEMORY.md?"
+
+**Classification**: Not a new pattern — a calibration of an existing one that wasn't being applied strongly enough.
+
+**What happens**:
+1. The Read-Order section in research-discipline.md was correct but treated as advisory
+2. Calibration: append a worked example showing the cost of skipping it
+3. Add a procedural step to any research-related skill: "FIRST read MEMORY.md and find the thread's topic file. Confirm the proposed approach is not in a 🛑 entry. Only then propose."
+4. The pattern moves from advisory to gated
+
+**Key insight**: A pattern Claude *has* but doesn't *apply* is functionally absent. Calibration through worked examples is how advisory rules become gated rules.
+
+#### SL-4.3: Stale-Claim Catch via `last_verified`
+
+**Event**: Claude quotes a number from a dated doc. The number was true on that date but the holdout was re-cut since.
+
+**User**: "Check the topic file. The holdout was re-cut on 2026-03-28."
+
+**Pattern captured**:
+```markdown
+## Quoting Numbers from Dated Docs
+- Before quoting a metric from a dated doc, check last_verified against the current holdout/config fingerprint
+- If the fingerprint changed, the number is stale — re-evaluate or qualify the citation
+- A dated doc records what was true on that date, not now
+```
+
+**Why this matters**: This is the trap vamp's `feedback_calibration_blind_spots` warns about. Frontmatter (`last_verified`) makes the staleness check mechanical instead of vibes-based.
+
+#### SL-4.4: Save the Confirmation, Not Just the Correction
+
+**Event**: User makes a non-obvious call (ship at +2.3pp rather than iterate). Claude initially doesn't save anything because no correction was given.
+
+**User**: "Save this. If you only ever save my corrections, you'll get more timid over time."
+
+**What happens**:
+1. Memory entry written with Rule / Why / How to apply
+2. The *why* is what makes it portable to future ship-or-iterate decisions
+3. Anti-sycophancy: confirmation memory keeps Claude calibrated rather than over-cautious
+
+**Why this matters**: Saving only "don't do X" produces an agent that defaults to inaction. Validated calls need explicit recording too, with their reasoning.
+
+#### SL-4.5: Skill Emerges — `start-research-thread`
+
+**After three independent threads** (embedding strategy, reranker tuning, semantic-search A/B), the open-a-research-thread procedure is stable enough for a skill:
+
+```markdown
+---
+name: start-research-thread
+description: "Open a new long-horizon research thread with the three-layer doc model. Creates topic file, first dated doc, and MEMORY.md pointer with correct frontmatter."
+---
+
+# Start Research Thread
+
+## Arguments
+Thread name (kebab-case, e.g., "embedding-strategy")
+Hypothesis or question (one sentence)
+
+## Steps
+1. Read MEMORY.md and patterns/research-discipline.md
+2. Confirm the thread name isn't already a 🛑 FALSIFIED entry — if it is, refuse and explain
+3. Create docs/research/_topics/{thread-name}.md with skeleton:
+   - Current belief: "<the hypothesis>"
+   - Dated docs: (empty list, will grow)
+   - Status: open
+4. Create docs/research/{today-ISO}-{thread-name}-initial.md with frontmatter:
+   - status: live
+   - topic: {thread-name}
+   - last_verified: {today}
+   - area: <inferred or asked>
+5. Add MEMORY.md entry: "🧭 {thread-name} — <one-sentence hook>"
+6. Stop. Do not begin the investigation — the user runs the experiments. Your job was the scaffold.
+
+## Shadow Learning Cycle
+When a thread closes (shipped or falsified), update patterns/research-discipline.md if the closing taught a new rule about discipline itself.
+```
+
+#### SL-4.6: Cross-Thread Reuse
+
+**Event**: A new feature might benefit from the distilled cross-encoder. Fresh Claude session.
+
+**Without the discipline**: Claude proposes building it from scratch, or asks the user "did we ever do anything like this?"
+
+**With the discipline**: Claude reads MEMORY.md → finds 🚢 semantic-search → reads the runbook → finds the diminishing-returns confirmation → proposes reuse *with the caveats from the prior investigation*.
+
+**No new pattern needed**. This is the system working as designed. Worth recording in the patterns file as a positive worked example, because Phase 1-2 had the negative ones.
+
+---
+
+### Why This Scenario Is Shaped Differently
+
+The first three scenarios teach Claude **technique** by watching a more skilled practitioner. Scenario 4 teaches Claude **memory hygiene** by watching someone who has survived six months of context loss.
+
+The pragmatic lesson — and the one that gives shadow-learn its real edge — is that the human's advantage isn't taste or experience. It's that **they wrote things down**, **they kept the writeups dated and append-only**, and **they put trust signals on every doc**. None of this requires a runtime. All of it requires discipline.
+
+The closing table in this document (below) lists capabilities like "confidence scores," "evidence linking," and "automatic decay" as things Claude Code memory cannot do. Half of that is wrong now. With frontmatter (`last_verified`, `verified_against`, `superseded_by`, status icons in MEMORY.md), markdown files carry trust signals and decay markers natively. You don't need a runtime; you need conventions a Claude session can apply mechanically.
+
+---
+
 ## Cross-Scenario Patterns
 
 ### How Knowledge Flows
