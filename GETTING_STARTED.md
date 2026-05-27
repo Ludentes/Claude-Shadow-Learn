@@ -540,6 +540,18 @@ ANYTIME
 
 ---
 
+## Two Modes: Human-to-Agent and Agent-to-Agent
+
+Shadow learning has two modes. The **primary** mode is human-to-agent: a human works with Claude, corrects out loud, and the system captures durable patterns. Everything above describes this mode.
+
+A **secondary** mode is agent-to-agent learning, where a more capable agent (or an automated outcome signal — passing tests, successful deploys, code review feedback) plays the role the human plays in the primary loop. The mechanics are identical — load patterns → apply → get corrected → update patterns. What changes is who provides the correction signal.
+
+- The primary mode is the priority for this project. Agent-to-agent is a future direction we keep compatible with, not the default.
+- For autonomous (`claude -p`) sessions where no one is watching, the parallel discipline is **escalation, not silent fallback**: write `docs/agent-escalations/YYYY-MM-DD-<topic>.md`, mark the task blocked, continue with other independent work, never guess on ambiguous requirements. See [obra/superpowers escalation](https://github.com/obra/superpowers/tree/main/skills/escalation).
+- The `feat/agent-runtime` branch of this repo carries an experimental agent-to-agent variant (cold-start patterns, work-to-knowledge extraction). It lives off `main` so it can evolve at its own cadence without destabilizing the primary loop.
+
+---
+
 ## Troubleshooting
 
 Run `./shadow-learn.sh health` first — it catches most issues automatically.
