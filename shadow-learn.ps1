@@ -15,6 +15,8 @@ $ErrorActionPreference = 'Stop'
 # --- Constants ---
 $RepoDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $SkillsDir = Join-Path $RepoDir 'skills'
+$AgentsDir = Join-Path $RepoDir 'agents'
+$BootstrapPatternsDir = Join-Path $RepoDir 'bootstrap-patterns'
 $ClaudeSkillsDir = Join-Path $HOME '.claude' 'skills'
 $ProjectSlug = (Get-Location).Path -replace '[/\\]', '-'
 $MemoryDir = Join-Path $HOME '.claude' 'projects' $ProjectSlug 'memory'
@@ -89,7 +91,7 @@ function Invoke-Init {
         exit 1
     }
 
-    foreach ($skill in @('session-knowledge-extract', 'memory-consolidate')) {
+    foreach ($skill in @('session-knowledge-extract', 'memory-consolidate', 'start-research-thread')) {
         $src = Join-Path $SkillsDir $skill
         if (Test-Path $src) {
             Copy-Item -Path $src -Destination $ClaudeSkillsDir -Recurse -Force
@@ -97,6 +99,37 @@ function Invoke-Init {
         }
     }
     Write-Host ''
+
+    # 4. Seed bootstrap pattern files
+    if (Test-Path $BootstrapPatternsDir) {
+        Write-Host "Seeding bootstrap patterns into $MemoryDir/patterns/"
+        foreach ($patternFile in (Get-ChildItem -Path $BootstrapPatternsDir -Filter '*.md' -ErrorAction SilentlyContinue)) {
+            $dest = Join-Path $MemoryDir 'patterns' $patternFile.Name
+            if (Test-Path $dest) {
+                Write-Ok "$($patternFile.Name) already present (kept local edits)"
+            } else {
+                Copy-Item -Path $patternFile.FullName -Destination $dest -Force
+                Write-Ok "$($patternFile.Name) (copied)"
+            }
+        }
+        Write-Host ''
+    }
+
+    # 5. Copy project subagents
+    if ((Test-Path $AgentsDir) -and (Get-ChildItem -Path $AgentsDir -Filter '*.md' -ErrorAction SilentlyContinue)) {
+        Write-Host 'Installing project subagents to .claude/agents/'
+        New-Item -ItemType Directory -Path '.claude/agents' -Force | Out-Null
+        foreach ($agentFile in (Get-ChildItem -Path $AgentsDir -Filter '*.md')) {
+            $dest = Join-Path '.claude/agents' $agentFile.Name
+            if (Test-Path $dest) {
+                Write-Ok "$($agentFile.Name) already present (kept local edits)"
+            } else {
+                Copy-Item -Path $agentFile.FullName -Destination $dest -Force
+                Write-Ok $agentFile.Name
+            }
+        }
+        Write-Host ''
+    }
 
     # 4. Bootstrap CLAUDE.md
     $claudeMd = 'CLAUDE.md'

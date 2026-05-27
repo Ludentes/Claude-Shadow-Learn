@@ -122,6 +122,15 @@ Learning skills enforce the full cycle: load patterns → apply → get correcte
 |---|---|---|
 | `session-knowledge-extract` | `/session-knowledge-extract` | Daily extraction safety net (free) |
 | `memory-consolidate` | `/memory-consolidate` | Weekly routing, pruning, review |
+| `start-research-thread` | `/start-research-thread` | Scaffold a long-horizon research thread (topic file + dated doc + MEMORY entry) |
+
+### Subagents
+
+| Agent | When | What it does |
+|---|---|---|
+| `frontmatter-tagger` | Dispatched when a research/blog doc lacks frontmatter | Mechanical Haiku subagent — returns 3-6 lines of YAML or SKIP |
+
+Installed to `.claude/agents/` by the init script. Project-scoped because the topic indexes it reads are per-project.
 
 ---
 

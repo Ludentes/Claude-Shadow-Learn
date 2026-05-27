@@ -6,6 +6,8 @@ set -euo pipefail
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SKILLS_DIR="$REPO_DIR/skills"
+AGENTS_DIR="$REPO_DIR/agents"
+BOOTSTRAP_PATTERNS_DIR="$REPO_DIR/bootstrap-patterns"
 CLAUDE_SKILLS_DIR="$HOME/.claude/skills"
 PROJECT_SLUG=$(echo "$PWD" | tr '/' '-')
 MEMORY_DIR="$HOME/.claude/projects/$PROJECT_SLUG/memory"
@@ -93,7 +95,7 @@ cmd_init() {
     exit 1
   fi
 
-  for skill in session-knowledge-extract memory-consolidate; do
+  for skill in session-knowledge-extract memory-consolidate start-research-thread; do
     if [ -d "$SKILLS_DIR/$skill" ]; then
       cp -r "$SKILLS_DIR/$skill" "$CLAUDE_SKILLS_DIR/"
       ok "$skill"
@@ -101,7 +103,42 @@ cmd_init() {
   done
   echo ""
 
-  # 4. Bootstrap CLAUDE.md
+  # 4. Seed bootstrap pattern files (reference patterns, user-editable after copy)
+  echo "Seeding bootstrap patterns into $MEMORY_DIR/patterns/"
+  if [ -d "$BOOTSTRAP_PATTERNS_DIR" ]; then
+    for pattern_file in "$BOOTSTRAP_PATTERNS_DIR"/*.md; do
+      [ -e "$pattern_file" ] || continue
+      local name
+      name=$(basename "$pattern_file")
+      if [ -f "$MEMORY_DIR/patterns/$name" ]; then
+        ok "$name already present (kept local edits)"
+      else
+        cp "$pattern_file" "$MEMORY_DIR/patterns/$name"
+        ok "$name (copied)"
+      fi
+    done
+  fi
+  echo ""
+
+  # 5. Copy project subagents (.claude/agents/)
+  if [ -d "$AGENTS_DIR" ] && compgen -G "$AGENTS_DIR/*.md" > /dev/null; then
+    echo "Installing project subagents to .claude/agents/"
+    mkdir -p ".claude/agents"
+    for agent_file in "$AGENTS_DIR"/*.md; do
+      [ -e "$agent_file" ] || continue
+      local name
+      name=$(basename "$agent_file")
+      if [ -f ".claude/agents/$name" ]; then
+        ok "$name already present (kept local edits)"
+      else
+        cp "$agent_file" ".claude/agents/$name"
+        ok "$name"
+      fi
+    done
+    echo ""
+  fi
+
+  # 6. Bootstrap CLAUDE.md
   local claude_md="CLAUDE.md"
   if [ -f "$claude_md" ] && grep -qi "shadow learning" "$claude_md" 2>/dev/null; then
     ok "Bootstrap already present in $claude_md"
@@ -128,7 +165,7 @@ cmd_init() {
     fi
   fi
 
-  # 5. AGENTS.md (cross-tool compatibility)
+  # 7. AGENTS.md (cross-tool compatibility)
   local agents_md="AGENTS.md"
   if [ -f "$agents_md" ]; then
     ok "AGENTS.md already exists"
