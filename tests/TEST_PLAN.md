@@ -4,6 +4,20 @@ Test each skill by running a subagent WITHOUT the skill (RED — baseline), then
 
 ## Test Data
 
+### Automated tests
+
+```bash
+./tests/run-tests.sh
+```
+
+Covers `bin/session-turns`: per-tool user-turn extraction, project filtering,
+`--since` filtering, malformed-line tolerance, absent-tool tolerance, and the
+Codex injected-context exclusion. Fixtures live in `tests/fixtures/tools/`.
+
+The Codex fixtures are built from the documented rollout schema, not captured
+from a live install — see the verification guide for what that leaves unproven.
+
+
 ### Fixtures
 
 ```

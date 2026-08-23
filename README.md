@@ -1,14 +1,17 @@
 # claude-shadow-learn
 
-Claude learns from your corrections. Each time you fix Claude's output, it updates
-pattern files so the next attempt is better. This repo provides the tools and
-structure to make that loop reliable.
+Your coding agent learns from your corrections. Each time you fix its output, it
+updates pattern files so the next attempt is better. This repo provides the tools
+and structure to make that loop reliable.
+
+Works with **Claude Code**, **Codex CLI**, and **Kimi Code** — one knowledge store,
+shared across all three, so a correction made in one tool is applied by the others.
 
 ```
-Session 1: You lead, Claude watches
-Session 2: Claude tries, you correct a lot
-Session 3: Claude tries, you correct a little
-Session 4+: Claude leads, you spot-check
+Session 1: You lead, the agent watches
+Session 2: The agent tries, you correct a lot
+Session 3: The agent tries, you correct a little
+Session 4+: The agent leads, you spot-check
 ```
 
 Validated across 4 real-world reviews where corrections dropped from many → few → minimal.
@@ -33,27 +36,25 @@ cd Claude-Shadow-Learn
 .\shadow-learn.ps1 init
 ```
 
-This creates the directory structure, copies skills, and adds the bootstrap snippet to your project's CLAUDE.md and an AGENTS.md for cross-tool compatibility. Pass `-y` to skip prompts.
+Run it from the directory of the project you want shadow learning in. It detects which
+agent tools you have installed, creates the knowledge store, installs skills and the
+transcript normalizer, and writes an `AGENTS.md`. Pass `-y` to skip prompts.
 
 ### Option B: Do it manually
 
 ```bash
-# 1. Copy skills into Claude Code
-cp -r skills/session-knowledge-extract  ~/.claude/skills/
-cp -r skills/memory-consolidate         ~/.claude/skills/
+# 1. Install skills and the transcript normalizer
+mkdir -p ~/.agents/skills ~/.agents/bin
+cp -r skills/session-knowledge-extract skills/memory-consolidate skills/start-research-thread ~/.agents/skills/
+cp bin/session-turns ~/.agents/bin/ && chmod +x ~/.agents/bin/session-turns
 
-# 2. Create directories
-mkdir -p docs/playbooks
-```
+# 2. Link into the tools you use (Kimi needs no link)
+for s in ~/.agents/skills/*/; do ln -s "${s%/}" ~/.claude/skills/"$(basename "$s")"; done
+for s in ~/.agents/skills/*/; do ln -s "${s%/}" ~/.codex/skills/"$(basename "$s")"; done
 
-Then create an `AGENTS.md` (see [agents.md](https://agents.md/) standard) and add this to your project's `CLAUDE.md`:
-
-```markdown
-## Shadow Learning
-This project uses shadow learning. Before work involving judgment,
-read `patterns/*.md` and `entities/*.md` in the memory directory.
-Read `docs/playbooks/*.md` in the project repo for repeatable procedures.
-When the user corrects you, note the correction explicitly.
+# 3. Create the store and instructions
+mkdir -p .agents/memory/patterns .agents/memory/entities docs/playbooks
+cp AGENTS.md.template AGENTS.md
 ```
 
 ### Check status
@@ -63,7 +64,22 @@ When the user corrects you, note the correction explicitly.
 .\shadow-learn.ps1 health   # Windows
 ```
 
-No API keys, no config, no dependencies. Read [GETTING_STARTED.md](GETTING_STARTED.md) for the full guide.
+No API keys, no config, no dependencies beyond `python3`. Read [GETTING_STARTED.md](GETTING_STARTED.md) for the full guide.
+
+---
+
+## Supported Tools
+
+| | Claude Code | Codex CLI | Kimi Code |
+|---|---|---|---|
+| Instructions | `AGENTS.md` (via `CLAUDE.md` pointer) | `AGENTS.md` | `AGENTS.md` |
+| Skills | linked into `~/.claude/skills/` | linked into `~/.codex/skills/` | reads `~/.agents/skills/` natively |
+| Knowledge store | `.agents/memory/` | `.agents/memory/` | `.agents/memory/` |
+| Transcript extraction | yes | yes | yes |
+| Session-end hook | `./shadow-learn.sh install-hooks claude` | manual (see GETTING_STARTED) | `./shadow-learn.sh install-hooks kimi` |
+
+The Codex reader is written against the documented rollout format but has not
+been verified against a live Codex install. Report mismatches as an issue.
 
 ---
 
@@ -71,34 +87,61 @@ No API keys, no config, no dependencies. Read [GETTING_STARTED.md](GETTING_START
 
 ### Knowledge Store
 
-Shadow learning organizes knowledge into structured files inside Claude Code's auto memory directory:
+Everything lives in the project repo, so every tool reads the same store:
 
 ```
-~/.claude/projects/<project>/memory/     # Claude's memory (personal)
-├── MEMORY.md              # Index — always loaded (<200 lines)
-├── patterns/              # Domain rules (<150 lines each)
-│   ├── frontend.md        #   FSD, shadcn, import rules
-│   └── code-review.md     #   Review style calibration
-├── entities/              # Per-entity context
-│   └── people.md          #   Teammates, clients...
-└── extracted-knowledge.md # Staging area
-
-docs/playbooks/            # Project repo (committed to git)
-├── deploy.md              #   Production deploy steps
-└── new-hire-setup.md      #   Onboarding checklist
+your-project/
+├── AGENTS.md                  # Instructions — all three tools read this
+├── CLAUDE.md                  # Thin pointer at AGENTS.md
+├── .agents/memory/            # The knowledge store
+│   ├── MEMORY.md              #   Index (<200 lines)
+│   ├── patterns/              #   Domain rules (<150 lines each)
+│   │   ├── frontend.md        #     FSD, shadcn, import rules
+│   │   └── code-review.md     #     Review style calibration
+│   ├── entities/              #   Per-entity context
+│   │   └── people.md          #     Teammates, clients...
+│   └── extracted-knowledge.md #   Staging area
+└── docs/playbooks/            # Repeatable procedures
+    ├── deploy.md              #   Production deploy steps
+    └── new-hire-setup.md      #   Onboarding checklist
 ```
 
-**Patterns** are domain-specific rules Claude applies during work. **Entities** are context about people, services, or systems. Both live in Claude's memory directory. **Playbooks** are repeatable procedures — deploy, setup, release, anything you do more than once. They live in the project repo (`docs/playbooks/`) so the whole team benefits.
+Skills and the transcript normalizer install once, user-globally:
+
+```
+~/.agents/
+├── skills/                    # Canonical source (Kimi reads it natively)
+└── bin/session-turns          # Transcript normalizer
+
+~/.claude/skills/<name>  →  ~/.agents/skills/<name>   (symlink)
+~/.codex/skills/<name>   →  ~/.agents/skills/<name>   (symlink)
+```
+
+**Patterns** are domain-specific rules the agent applies during work. **Entities** are context about people, services, or systems. **Playbooks** are repeatable procedures — deploy, setup, release, anything you do more than once.
+
+Committing `.agents/memory/` shares learning with your team. `init` asks first, because patterns and entity notes can hold names or client details; answer no and it adds the directory to `.gitignore`.
 
 ### The Correction Loop
 
-The core mechanism: you correct Claude → Claude records the pattern → next time Claude applies it.
+The core mechanism: you correct the agent → it records the pattern → next time it applies the pattern.
 
 Good corrections are specific:
 - "Don't put API calls in pages. They go in `features/*/api/`."
 - "This intro is 5 pages. Cut to 2."
 
 Weak corrections ("this is wrong", "fix it") don't produce learnable patterns.
+
+Corrections are picked up regardless of which tool you were using. `session-turns`
+reads Claude Code, Codex CLI, and Kimi Code transcripts for the current project and
+emits one normalized stream:
+
+```
+$ ~/.agents/bin/session-turns --since 1d
+--- [kimi 2026-08-23T15:40]
+We always use pnpm, never npm
+--- [claude 2026-08-23T14:02]
+Don't put API calls in pages. They go in features/*/api/.
+```
 
 ### What Gets Saved
 
@@ -136,12 +179,17 @@ Installed to `.claude/agents/` by the init script. Project-scoped because the to
 
 ## Creating Your Own Learning Skill
 
-After you've done the same type of work **3+ times** and corrected Claude each time:
+After you've done the same type of work **3+ times** and corrected the agent each time:
 
 ```bash
-cp -r skills/_template skills/my-skill
+# Project-specific skill — Kimi reads .agents/skills natively;
+# link it into the other tools' project skill dirs as needed.
+mkdir -p .agents/skills
+cp -r skills/_template .agents/skills/my-skill
 # Edit SKILL.md with your domain-specific steps
-cp -r skills/my-skill ~/.claude/skills/
+
+# Or install it user-globally, for every project
+cp -r skills/_template ~/.agents/skills/my-skill
 ```
 
 The template has the full skeleton: load → apply → correct → produce → learn. The skill is not the product — the pattern file is. A mature pattern file works even without the skill.
@@ -153,8 +201,8 @@ See [GETTING_STARTED.md](GETTING_STARTED.md) for details on when to create skill
 ## Daily Workflow
 
 ```
-Morning:   Start working. Claude loads memory files automatically.
-During:    Correct Claude when it gets things wrong. Be explicit.
+Morning:   Start working in any tool. It loads AGENTS.md and the memory files.
+During:    Correct the agent when it gets things wrong. Be explicit.
 End of day: Run /session-knowledge-extract (catches what was missed).
 Weekly:    Run /memory-consolidate (routes, prunes, reviews).
 ```

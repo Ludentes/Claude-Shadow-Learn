@@ -45,39 +45,61 @@ cd your-project
 \path\to\Claude-Shadow-Learn\shadow-learn.ps1 init
 ```
 
-This creates the directory structure, copies skills, adds the bootstrap snippet to your CLAUDE.md, and creates an AGENTS.md for cross-tool compatibility. Pass `-y` to skip prompts.
+It detects which agent tools you have installed, creates `.agents/memory/` in the project, installs skills and the transcript normalizer to `~/.agents/`, links them into each tool, and writes an `AGENTS.md`. Pass `-y` to skip prompts.
 
 ### Option B: Do it manually
 
 ```bash
-# 1. Copy skills into Claude Code
-cp -r skills/session-knowledge-extract  ~/.claude/skills/
-cp -r skills/memory-consolidate         ~/.claude/skills/
+# 1. Install skills and the transcript normalizer, once per machine
+mkdir -p ~/.agents/skills ~/.agents/bin
+cp -r skills/session-knowledge-extract skills/memory-consolidate skills/start-research-thread ~/.agents/skills/
+cp bin/session-turns ~/.agents/bin/ && chmod +x ~/.agents/bin/session-turns
 
-# 2. Create directories
-mkdir -p docs/playbooks
+# 2. Link into the tools you use. Kimi Code reads ~/.agents/skills natively.
+for s in ~/.agents/skills/*/; do ln -s "${s%/}" ~/.claude/skills/"$(basename "$s")"; done
+for s in ~/.agents/skills/*/; do ln -s "${s%/}" ~/.codex/skills/"$(basename "$s")"; done
+
+# 3. Create the store and instructions, once per project
+mkdir -p .agents/memory/patterns .agents/memory/entities docs/playbooks
+cp /path/to/Claude-Shadow-Learn/AGENTS.md.template AGENTS.md
 ```
 
-Then add the bootstrap snippet below to your project's `CLAUDE.md`.
+No API keys, no config, no dependencies beyond `python3`.
 
-No API keys, no config, no dependencies. Skills read/write to Claude Code's built-in memory directory.
+### Bootstrap: AGENTS.md
 
-### Bootstrap: Add to your project CLAUDE.md
+`AGENTS.md` is the single instruction surface. Claude Code, Codex CLI, and Kimi Code all read it, so the bootstrap is written once. It tells the agent that pattern files exist and should be consulted — without it, the agent won't know to look.
 
-Add this snippet to your project's `CLAUDE.md` (or `.claude/CLAUDE.md`). It tells Claude that pattern files exist and should be consulted. Without it, Claude won't know to look.
+`AGENTS.md.template` in this repo is the copy `init` installs. If you use Claude Code, keep a `CLAUDE.md` that points at it:
 
 ```markdown
-## Shadow Learning
+# CLAUDE.md
 
-This project uses shadow learning. Learned patterns and entity context are stored in the auto memory directory.
-
-Before work that involves judgment (reviews, architecture, writing):
-- Read `patterns/*.md` files in the memory directory for domain-specific rules
-- Read `entities/*.md` files for context about people, services, or systems
-- Read `docs/playbooks/*.md` in the project repo for repeatable procedures
-
-When the user corrects you, note the correction explicitly — it will be extracted later.
+See [AGENTS.md](AGENTS.md) — it holds the shadow learning instructions and is
+shared with Codex CLI and Kimi Code. Everything there applies here.
 ```
+
+### Migrating from a Claude-only setup
+
+Earlier versions kept patterns in `~/.claude/projects/<slug>/memory/`. To move an existing store into the tool-neutral location:
+
+```bash
+./shadow-learn.sh migrate
+```
+
+This copies every `.md` file into `.agents/memory/`, leaves the original intact, and never overwrites a file that already exists at the destination. Pass `--merge` to fill gaps in a store that already has content.
+
+Review the result before committing — patterns and entity notes can contain names, client details, or other things you may not want in a shared repo. If in doubt, add `.agents/memory/` to `.gitignore`.
+
+### Codex session-end hook (manual)
+
+`install-hooks` does not automate Codex, because its hook schema is not verified here. Add the equivalent to `~/.codex/config.toml` yourself, adapting to your Codex version's hook syntax, so that on session end it runs:
+
+```bash
+codex exec "Run the session-knowledge-extract skill on the session that just ended."
+```
+
+Until then, run `/session-knowledge-extract` manually at the end of the day — it reads Codex transcripts regardless of whether a hook triggered it.
 
 Copy-paste this into your CLAUDE.md. Adjust or expand as patterns accumulate — but keep it short. Long instructions get ignored under load ([evidence](docs/plans/2026-03-09-shadow-learning-process-design.md)).
 
@@ -232,19 +254,22 @@ Your corrections are the training signal. Their quality determines how fast and 
 ### File Organization
 
 ```
-~/.claude/projects/<project>/memory/     # Claude's memory (personal)
-├── MEMORY.md              # Index — always loaded (<200 lines)
-├── patterns/              # Domain rules (<150 lines each)
-│   ├── frontend.md        #   FSD, shadcn, import rules
-│   └── code-review.md     #   Review style calibration
-├── entities/              # Per-entity context
-│   └── people.md          #   Teammates, clients...
-└── extracted-knowledge.md # Staging area from /session-knowledge-extract
-
-docs/playbooks/            # Project repo (committed to git)
-├── deploy.md              #   Production deploy steps
-└── new-hire-setup.md      #   Onboarding checklist
+your-project/
+├── AGENTS.md                  # Instructions — every tool reads this
+├── .agents/memory/            # The knowledge store
+│   ├── MEMORY.md              #   Index (<200 lines)
+│   ├── patterns/              #   Domain rules (<150 lines each)
+│   │   ├── frontend.md        #     FSD, shadcn, import rules
+│   │   └── code-review.md     #     Review style calibration
+│   ├── entities/              #   Per-entity context
+│   │   └── people.md          #     Teammates, clients...
+│   └── extracted-knowledge.md #   Staging area from /session-knowledge-extract
+└── docs/playbooks/            # Repeatable procedures
+    ├── deploy.md              #   Production deploy steps
+    └── new-hire-setup.md      #   Onboarding checklist
 ```
+
+The store lives in the repo, so all three tools read the same files and the whole team can share them. `init` asks whether to commit it; answering no adds `.agents/memory/` to `.gitignore`.
 
 ### What gets saved
 
@@ -436,14 +461,15 @@ After you've done the same type of work **3+ times** and corrected Claude each t
 ### How to create one
 
 ```bash
-# Copy the template
-cp -r skills/_template skills/my-skill
+# Project-specific skill (Kimi reads .agents/skills natively)
+mkdir -p .agents/skills
+cp -r skills/_template .agents/skills/my-skill
 
 # Edit SKILL.md — fill in your domain-specific steps
 # PATTERN.md and ENTITY.md are templates for your knowledge files
 
-# Install
-cp -r skills/my-skill ~/.claude/skills/
+# Or install it for every project
+cp -r skills/_template ~/.agents/skills/my-skill
 ```
 
 The template has the full skeleton: load → apply → correct → produce → learn. Fill in your domain-specific steps (keep them to 10-15 lines) and point it at your pattern file.
@@ -558,8 +584,10 @@ Run `./shadow-learn.sh health` first — it catches most issues automatically.
 
 | Problem | Fix |
 |---|---|
-| No sessions found | Check slug: `ls ~/.claude/projects/ \| grep <keyword>` |
-| Skills not appearing | Confirm: `~/.claude/skills/<name>/SKILL.md` must exist |
+| No sessions found | Run `~/.agents/bin/session-turns --since 7d` — its stderr names each tool and its turn count |
+| One tool's turns missing | That tool's session root wasn't found. Override it: `SL_CODEX_HOME=... session-turns` |
+| Skills not appearing | Confirm `~/.agents/skills/<name>/SKILL.md` exists, and that your tool's skills dir links to it |
+| Agent ignores patterns | Confirm `AGENTS.md` exists and names `.agents/memory/` |
 | MEMORY.md over 200 lines | Run `/memory-consolidate` to prune and rebalance |
 | Pattern file over 150 lines | Run `/memory-consolidate` or manually prune |
 | Memory feels noisy | Review files — remove general knowledge entries |
