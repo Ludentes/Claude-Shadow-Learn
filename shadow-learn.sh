@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# shadow-learn — shadow learning toolkit for Claude Code
+# shadow-learn — shadow learning toolkit for Claude Code, Codex CLI, and Kimi Code
 # https://github.com/Ludentes/Claude-Shadow-Learn
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -189,6 +189,54 @@ cmd_init() {
 }
 
 # =============================================================================
+# MIGRATE
+# =============================================================================
+cmd_migrate() {
+  local merge=false
+  [[ "${1:-}" == "--merge" ]] && merge=true
+
+  local slug legacy
+  slug=$(echo "$PWD" | tr '/' '-')
+  legacy="$HOME/.claude/projects/$slug/memory"
+
+  echo -e "${BOLD}Migrate legacy Claude store${RESET}"
+  echo ""
+
+  if [ ! -d "$legacy" ]; then
+    fail "No legacy store at $legacy"
+    return 1
+  fi
+
+  if [ -d "$MEMORY_DIR" ] && [ -n "$(ls -A "$MEMORY_DIR" 2>/dev/null)" ] && ! $merge; then
+    fail "$MEMORY_DIR already has content"
+    echo "  Re-run with --merge to add missing files without overwriting."
+    return 1
+  fi
+
+  mkdir -p "$MEMORY_DIR"
+  local copied=0 kept=0
+  while IFS= read -r src; do
+    local rel dest
+    rel="${src#"$legacy"/}"
+    dest="$MEMORY_DIR/$rel"
+    if [ -f "$dest" ]; then
+      ok "$rel already present (kept)"
+      kept=$((kept + 1))
+    else
+      mkdir -p "$(dirname "$dest")"
+      cp "$src" "$dest"
+      ok "$rel"
+      copied=$((copied + 1))
+    fi
+  done < <(find "$legacy" -type f -name "*.md")
+
+  echo ""
+  echo "  $copied copied, $kept kept"
+  echo "  Original left intact at $legacy"
+  warn "Review .agents/memory/ for names or client details before committing."
+}
+
+# =============================================================================
 # HEALTH
 # =============================================================================
 cmd_health() {
@@ -317,21 +365,49 @@ cmd_health() {
     warn_count=$((warn_count + 1))
   fi
 
-  # 7. Bootstrap
-  if [ -f "CLAUDE.md" ] && grep -qi "shadow learning" "CLAUDE.md" 2>/dev/null; then
-    ok "Bootstrap in CLAUDE.md"
+  # 7. Instruction file
+  if [ -f "AGENTS.md" ] && grep -q '\.agents/memory' "AGENTS.md" 2>/dev/null; then
+    ok "AGENTS.md points at the knowledge store"
     ok_count=$((ok_count + 1))
   else
-    fail "No bootstrap in CLAUDE.md — run: ./shadow-learn.sh init"
+    fail "AGENTS.md missing or not pointing at .agents/memory — run: ./shadow-learn.sh init"
     fail_count=$((fail_count + 1))
   fi
 
-  # 8. AGENTS.md (cross-tool)
-  if [ -f "AGENTS.md" ]; then
-    ok "AGENTS.md present (cross-tool compatibility)"
+  # 8. Per-tool reachability
+  local any_tool=false
+  for pair in "claude:$HOME/.claude/skills" "codex:$HOME/.codex/skills"; do
+    local tool="${pair%%:*}" dir="${pair#*:}"
+    [ -d "$(dirname "$dir")" ] || continue
+    any_tool=true
+    if [ -e "$dir/session-knowledge-extract" ]; then
+      ok "$tool: skills linked"
+      ok_count=$((ok_count + 1))
+    else
+      warn "$tool: skills not linked — run: ./shadow-learn.sh init"
+      warn_count=$((warn_count + 1))
+    fi
+  done
+  if [ -d "$HOME/.kimi-code" ] || [ -d "$HOME/.kimi" ]; then
+    any_tool=true
+    if [ -d "$HOME/.agents/skills/session-knowledge-extract" ]; then
+      ok "kimi: skills present in ~/.agents/skills (native)"
+      ok_count=$((ok_count + 1))
+    else
+      warn "kimi: ~/.agents/skills missing — run: ./shadow-learn.sh init"
+      warn_count=$((warn_count + 1))
+    fi
+  fi
+  $any_tool || warn "No supported agent tool detected"
+
+  # 9. Transcript reader
+  if [ -x "$HOME/.agents/bin/session-turns" ]; then
+    local turn_report
+    turn_report=$("$HOME/.agents/bin/session-turns" --since 7d 2>&1 >/dev/null | tr '\n' ' ')
+    ok "session-turns: $turn_report"
     ok_count=$((ok_count + 1))
   else
-    warn "No AGENTS.md — run: ./shadow-learn.sh init"
+    warn "session-turns not installed — run: ./shadow-learn.sh init"
     warn_count=$((warn_count + 1))
   fi
 
@@ -343,7 +419,56 @@ cmd_health() {
 # INSTALL-HOOKS
 # =============================================================================
 cmd_install_hooks() {
-  echo -e "${BOLD}Install Session-End Hook${RESET}"
+  local tool="${1:-claude}"
+  case "$tool" in
+    claude) install_hooks_claude ;;
+    kimi)   install_hooks_kimi ;;
+    codex)
+      warn "Codex hook installation is not automated."
+      echo "  Codex's hook schema is not verified against a live install."
+      echo "  See GETTING_STARTED.md for the config.toml block to add by hand."
+      ;;
+    *) fail "Unknown tool: $tool (expected claude, kimi, or codex)" ; return 1 ;;
+  esac
+}
+
+install_hooks_kimi() {
+  local config="$HOME/.kimi-code/config.toml"
+  [ -f "$config" ] || config="$HOME/.kimi/config.toml"
+  if [ ! -f "$config" ]; then
+    fail "No Kimi config found at ~/.kimi-code/config.toml"
+    return 1
+  fi
+  if grep -q "session-knowledge-extract" "$config" 2>/dev/null; then
+    ok "Hook already installed in $config"
+    return
+  fi
+
+  # Kimi ships `hooks = []` in the root table. Appending [[hooks]] alongside it
+  # is a duplicate key and makes the TOML invalid, so drop the empty array first.
+  # A non-empty inline array is left alone — merging it is the user's call.
+  if grep -qE '^[[:space:]]*hooks[[:space:]]*=[[:space:]]*\[[[:space:]]*[^][:space:]]' "$config"; then
+    fail "$config already defines a non-empty inline 'hooks' array"
+    echo "  Add this to it by hand, or convert it to [[hooks]] tables first:"
+    echo "    { event = \"SessionEnd\", command = \"kimi -p '...'\" }"
+    return 1
+  fi
+  local tmp
+  tmp=$(mktemp)
+  grep -vE '^[[:space:]]*hooks[[:space:]]*=[[:space:]]*\[[[:space:]]*\][[:space:]]*$' "$config" > "$tmp"
+  cat >> "$tmp" <<'KIMIHOOK'
+
+[[hooks]]
+event = "SessionEnd"
+command = "kimi -p 'Run the session-knowledge-extract skill on the session that just ended. Write results without asking.'"
+KIMIHOOK
+  mv "$tmp" "$config"
+  ok "Hook installed: session-knowledge-extract on SessionEnd"
+  echo "  File: $config"
+}
+
+install_hooks_claude() {
+  echo -e "${BOLD}Install Session-End Hook (Claude Code)${RESET}"
   echo ""
 
   local settings=".claude/settings.local.json"
@@ -404,14 +529,17 @@ print('Installed')
 # USAGE
 # =============================================================================
 usage() {
-  echo "shadow-learn — shadow learning toolkit for Claude Code"
+  echo "shadow-learn — shadow learning toolkit for Claude Code, Codex CLI, and Kimi Code"
   echo ""
   echo "Usage: ./shadow-learn.sh <command> [options]"
   echo ""
   echo "Commands:"
-  echo "  init [-y]        Set up shadow learning for the current project"
-  echo "  health           Check shadow learning status"
-  echo "  install-hooks    Auto-extract knowledge on session end"
+  echo "  init [-y]                 Set up shadow learning for the current project"
+  echo "  health                    Check status across all installed tools"
+  echo "  migrate [--merge]         Move a legacy ~/.claude memory store into .agents/memory/"
+  echo "  install-hooks [TOOL]      Auto-extract on session end (claude|kimi|codex)"
+  echo ""
+  echo "Supported tools: Claude Code, Codex CLI, Kimi Code"
   echo ""
   echo "Or just copy the skills manually — see README.md"
 }
@@ -422,7 +550,8 @@ usage() {
 case "${1:-}" in
   init)           shift; cmd_init "${1:-}" ;;
   health)         cmd_health ;;
-  install-hooks)  cmd_install_hooks ;;
+  migrate)        shift; cmd_migrate "${1:-}" ;;
+  install-hooks)  shift; cmd_install_hooks "${1:-claude}" ;;
   -h|--help|help) usage ;;
   *)              usage ;;
 esac
