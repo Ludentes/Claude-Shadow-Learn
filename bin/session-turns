@@ -78,7 +78,43 @@ def read_claude(root, project, cutoff):
                 yield stamp, text
 
 
-READERS = {"claude": read_claude}
+INJECTED_PREFIXES = ("<user_instructions>", "<environment_context>")
+
+
+def read_codex(root, project, cutoff):
+    session_dir = root / "sessions"
+    if not session_dir.is_dir():
+        return
+    for path in sorted(session_dir.rglob("rollout-*.jsonl")):
+        if path.stat().st_mtime < cutoff:
+            continue
+        stamp = path.stat().st_mtime
+        for obj in read_lines(path):
+            payload = obj.get("payload")
+            if not isinstance(payload, dict):
+                continue
+            kind = obj.get("type")
+
+            if kind == "session_meta":
+                session_cwd = payload.get("cwd")
+                if session_cwd and Path(session_cwd) != project:
+                    break
+                continue
+
+            text = ""
+            if kind == "event_msg" and payload.get("type") == "user_message":
+                text = payload.get("message", "")
+            elif (kind == "response_item"
+                  and payload.get("type") == "message"
+                  and payload.get("role") == "user"):
+                text = text_from_content(payload.get("content", ""))
+
+            text = text.strip()
+            if text and not text.startswith(INJECTED_PREFIXES):
+                yield stamp, text
+
+
+READERS = {"claude": read_claude, "codex": read_codex}
 
 
 def parse_since(value):
@@ -104,6 +140,7 @@ def main():
 
     roots = {
         "claude": home("SL_CLAUDE_HOME", "~/.claude"),
+        "codex": home("SL_CODEX_HOME", "~/.codex"),
     }
 
     turns = []

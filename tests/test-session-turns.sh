@@ -25,3 +25,23 @@ assert_not_contains "$out" "ignored tool output"
 
 it "claude: tags turns with the tool name"
 assert_contains "$out" "--- [claude"
+
+out=$(run_st --tool codex --project /tmp/proj --since 100000d)
+
+it "codex: extracts event_msg user_message shape"
+assert_contains "$out" "Cut the intro to two pages."
+
+it "codex: extracts response_item message/input_text shape"
+assert_contains "$out" "Deploys must wait for CI green."
+
+it "codex: skips agent messages"
+assert_not_contains "$out" "Shortening the intro."
+
+it "codex: skips assistant response_items"
+assert_not_contains "$out" "Noted."
+
+it "codex: skips injected user_instructions"
+assert_not_contains "$out" "be terse"
+
+it "codex: filters sessions from other projects"
+assert_not_contains "$out" "Belongs to a different project."
