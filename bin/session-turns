@@ -58,6 +58,18 @@ def text_from_content(content):
     return " ".join(p for p in parts if p)
 
 
+# Claude Code records harness plumbing with role "user": skill bodies loaded by
+# the Skill tool, background system reminders, and slash-command expansions.
+# None of it is something the user said, so none of it is learnable signal.
+CLAUDE_INJECTED_PREFIXES = (
+    "Base directory for this skill:",
+    "<system-reminder>",
+    "<command-name>",
+    "<command-message>",
+    "<local-command-stdout>",
+)
+
+
 def read_claude(root, project, cutoff):
     slug = str(project).replace("/", "-")
     session_dir = root / "projects" / slug
@@ -74,7 +86,7 @@ def read_claude(root, project, cutoff):
             if not isinstance(message, dict) or message.get("role") != "user":
                 continue
             text = text_from_content(message.get("content", "")).strip()
-            if text:
+            if text and not text.startswith(CLAUDE_INJECTED_PREFIXES):
                 yield stamp, text
 
 
@@ -114,6 +126,53 @@ def read_codex(root, project, cutoff):
                 yield stamp, text
 
 
+def kimi_wire_files(root, session_dir):
+    """Wire logs for one Kimi session, newest layout first.
+
+    Current versions write agents/main/wire.jsonl; older ones wrote
+    wire.jsonl at the session root. Subagent logs under agents/<other>/
+    are deliberately skipped — their prompts come from the agent, not the user.
+    """
+    # Fixtures use a SESSIONS/ placeholder so they stay machine-independent.
+    if session_dir.startswith("SESSIONS/"):
+        base = root / "sessions" / session_dir[len("SESSIONS/"):]
+    else:
+        base = Path(session_dir)
+    return [base / "agents" / "main" / "wire.jsonl", base / "wire.jsonl"]
+
+
+def kimi_turn(obj):
+    """(timestamp_or_None, text) for a user turn, or None for anything else.
+
+    Two wire protocols are in the wild:
+      current — {"type": "turn.prompt", "input": [...], "origin": {"kind": "user"}, "time": <ms>}
+      legacy  — {"timestamp": <s>, "message": {"type": "TurnBegin", "payload": {"user_input": ...}}}
+    """
+    if obj.get("type") == "turn.prompt":
+        origin = obj.get("origin")
+        if isinstance(origin, dict) and origin.get("kind") != "user":
+            return None
+        text = text_from_content(obj.get("input", "")).strip()
+        if not text:
+            return None
+        stamp = obj.get("time")
+        # `time` is milliseconds; `timestamp` on the legacy shape is seconds.
+        return (stamp / 1000 if isinstance(stamp, (int, float)) else None), text
+
+    message = obj.get("message")
+    if isinstance(message, dict) and message.get("type") == "TurnBegin":
+        payload = message.get("payload")
+        if not isinstance(payload, dict):
+            return None
+        text = str(payload.get("user_input", "")).strip()
+        if not text:
+            return None
+        stamp = obj.get("timestamp")
+        return (stamp if isinstance(stamp, (int, float)) else None), text
+
+    return None
+
+
 def read_kimi(root, project, cutoff):
     index = root / "session_index.jsonl"
     if not index.is_file():
@@ -125,31 +184,22 @@ def read_kimi(root, project, cutoff):
             continue
         if Path(work_dir) != project:
             continue
-        # Fixtures use a SESSIONS/ placeholder so they stay machine-independent.
-        if session_dir.startswith("SESSIONS/"):
-            path = root / "sessions" / session_dir[len("SESSIONS/"):] / "wire.jsonl"
-        else:
-            path = Path(session_dir) / "wire.jsonl"
-        if not path.is_file():
-            continue
-        for obj in read_lines(path):
-            message = obj.get("message")
-            if not isinstance(message, dict):
+        for path in kimi_wire_files(root, session_dir):
+            if not path.is_file():
                 continue
-            if message.get("type") != "TurnBegin":
-                continue
-            payload = message.get("payload")
-            if not isinstance(payload, dict):
-                continue
-            text = str(payload.get("user_input", "")).strip()
-            if not text:
-                continue
-            stamp = obj.get("timestamp")
-            if not isinstance(stamp, (int, float)):
-                stamp = path.stat().st_mtime
-            if stamp < cutoff:
-                continue
-            yield stamp, text
+            for obj in read_lines(path):
+                turn = kimi_turn(obj)
+                if turn is None:
+                    continue
+                stamp, text = turn
+                if stamp is None:
+                    stamp = path.stat().st_mtime
+                if stamp < cutoff:
+                    continue
+                yield stamp, text
+            # Only the first layout that exists is authoritative; reading both
+            # would double every turn in a session that has been migrated.
+            break
 
 
 READERS = {"claude": read_claude, "codex": read_codex, "kimi": read_kimi}

@@ -97,7 +97,7 @@ it "auto: reports absent tools on stderr"
 assert_contains "$stderr" "codex: not installed"
 
 it "auto: reports per-tool counts on stderr"
-assert_contains "$stderr" "kimi: 2 user turns"
+assert_contains "$stderr" "kimi: 4 user turns"
 
 recent=$(run_st --project /tmp/proj --since 1h)
 
@@ -113,3 +113,37 @@ bad_rc=0
 run_st --project /tmp/proj --since notatime >/dev/null 2>&1 || bad_rc=$?
 it "invalid --since exits non-zero"
 assert_eq "2" "$bad_rc"
+
+# Kimi's current layout: agents/main/wire.jsonl with the turn.prompt protocol.
+out=$(run_st --tool kimi --project /tmp/proj --since 100000d)
+
+it "kimi: reads the current agents/main/wire.jsonl layout"
+assert_contains "$out" "Always run migrations before seeding."
+
+it "kimi: extracts every turn.prompt in the new layout"
+assert_contains "$out" "Reviewers must be named in the PR body."
+
+it "kimi: does not duplicate a turn recorded in both turn.prompt and context.append_message"
+assert_eq "1" "$(printf '%s\n' "$out" | grep -c 'Always run migrations before seeding.')"
+
+it "kimi: skips non-user turn.prompt origins"
+assert_not_contains "$out" "internal compaction prompt"
+
+it "kimi: never surfaces the system prompt"
+assert_not_contains "$out" "Never surface this."
+
+# Claude injects skill bodies, system reminders, and slash-command expansions as
+# user-role turns. They are harness plumbing, not things the user said.
+out=$(run_st --tool claude --project /tmp/proj --since 100000d)
+
+it "claude: skips injected skill bodies"
+assert_not_contains "$out" "Injected skill body"
+
+it "claude: skips system-reminder turns"
+assert_not_contains "$out" "Background context, not a user instruction."
+
+it "claude: skips slash-command expansions"
+assert_not_contains "$out" "<command-name>"
+
+it "claude: still keeps real user turns alongside the injected ones"
+assert_contains "$out" "We always use pnpm in this project, never npm."
