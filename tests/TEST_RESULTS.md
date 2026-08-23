@@ -317,3 +317,17 @@ Three pressure scenarios tested for rationalization resistance:
 2. **deep-extract** — Not tested (requires OPENROUTER_API_KEY)
 3. **thesis-review LLM voice handling** — Only intro was tested; chapter 1 review needed to test LLM voice detection
 4. **Real session data** — Only synthetic session tested for extraction; real session (`real-thesis-review-session.jsonl`, 47 turns) available but not scored
+
+---
+
+## Multi-tool portability (2026-08-23)
+
+`./tests/run-tests.sh` — 35 passed, 0 failed. Covers `bin/session-turns` across
+Claude Code, Codex CLI, and Kimi Code fixtures.
+
+Manual verification, including a live cross-tool round trip through `kimi -p`:
+[docs/verification/2026-08-23-multi-tool-portability.md](../docs/verification/2026-08-23-multi-tool-portability.md).
+
+Not verified: `shadow-learn.ps1` (no `pwsh` on this machine, static checks only)
+and the Codex reader (Codex not installed; fixture-tested against the documented
+rollout format only).
