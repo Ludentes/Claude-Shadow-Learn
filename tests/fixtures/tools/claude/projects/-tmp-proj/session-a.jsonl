@@ -1,0 +1,6 @@
+{"type":"user","message":{"role":"user","content":"We always use pnpm in this project, never npm."}}
+{"type":"assistant","message":{"role":"assistant","content":"Understood."}}
+{"type":"user","message":{"role":"user","content":[{"type":"text","text":"Don't put API calls in pages. They go in features/*/api/."},{"type":"image","source":{}}]}}
+{"type":"user","message":{"role":"user","content":[{"type":"tool_result","content":"ignored tool output"}]}}
+not json at all
+{"type":"user","message":{"role":"user","content":"ok"}}
