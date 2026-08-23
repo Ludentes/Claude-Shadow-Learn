@@ -28,9 +28,7 @@ Scaffolds a new research thread following the three-layer document model (dated 
 ## Step 0: Load context
 
 ```bash
-CWD=$(pwd)
-PROJECT_SLUG=$(echo "$CWD" | tr '/' '-')
-MEMORY_DIR="$HOME/.claude/projects/$PROJECT_SLUG/memory"
+MEMORY_DIR="$(pwd)/.agents/memory"
 ```
 
 Read in order:

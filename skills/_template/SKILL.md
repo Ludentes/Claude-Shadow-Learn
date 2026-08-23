@@ -9,7 +9,7 @@ This skill implements a **shadow learning loop**: load patterns → apply to new
 
 ## Pattern File
 
-`memory/patterns/[domain].md` — read at start, update at end.
+`.agents/memory/patterns/[domain].md` — read at start, update at end.
 
 ## Cold Start
 
@@ -25,8 +25,8 @@ Read ALL of these:
 
 | File | Purpose | If missing |
 |---|---|---|
-| `$MEMORY_DIR/patterns/[domain].md` | Learned rules — primary instruction set | Switch to cold start (user leads) |
-| `$MEMORY_DIR/entities/[relevant].md` | Per-entity context | Ask user for context |
+| `.agents/memory/patterns/[domain].md` | Learned rules — primary instruction set | Switch to cold start (user leads) |
+| `.agents/memory/entities/[relevant].md` | Per-entity context | Ask user for context |
 | `docs/playbooks/[relevant].md` | Repeatable procedures (project repo) | Skip — no procedures yet |
 
 Before proceeding, note:

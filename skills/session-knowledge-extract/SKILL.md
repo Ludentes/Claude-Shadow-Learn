@@ -1,64 +1,46 @@
 ---
 name: session-knowledge-extract
-description: Use when the user wants to extract knowledge from today's Claude Code sessions without running the Galatea pipeline. Triggers on "extract from sessions", "what did I teach Claude today", "learn from today", "session extract". Reads raw JSONL session files and writes to auto memory.
+description: Use when the user wants to extract knowledge from today's agent sessions without running the Galatea pipeline. Triggers on "extract from sessions", "what did I teach you today", "learn from today", "session extract". Reads Claude Code, Codex CLI, and Kimi Code transcripts and writes to the project knowledge store.
 ---
 
 # Session Knowledge Extract
 
-Read today's Claude Code sessions and extract durable knowledge using heuristic rules. No pipeline required — Claude reads and classifies directly. Writes to Claude Code's auto memory directory as `extracted-knowledge.md`, complementing the built-in auto memory.
+Read today's sessions across Claude Code, Codex CLI, and Kimi Code, and extract durable knowledge using heuristic rules. No pipeline required — the agent reads and classifies directly. Writes to the project knowledge store at `.agents/memory/extracted-knowledge.md`.
 
 ## Paths
 
 ```bash
-CWD=$(pwd)
-PROJECT_SLUG=$(echo "$CWD" | tr '/' '-')
-SESSION_DIR="$HOME/.claude/projects/$PROJECT_SLUG"
-MEMORY_DIR="$SESSION_DIR/memory"
+MEMORY_DIR="$(pwd)/.agents/memory"
 ```
+
+The knowledge store lives in the project repo, so it works identically under
+Claude Code, Codex CLI, and Kimi Code.
 
 ## Step 0: Load existing memory context
 
-Read CLAUDE.md (project + user), `$MEMORY_DIR/MEMORY.md`, and `$MEMORY_DIR/extracted-knowledge.md`. Note what's already documented (skip in Step 4), known entities, and existing sections to merge into.
+Read `AGENTS.md`, `$MEMORY_DIR/MEMORY.md`, and `$MEMORY_DIR/extracted-knowledge.md`.
+Note what's already documented (skip in Step 4), known entities, and existing
+sections to merge into. If nothing exists, proceed without context.
 
-If nothing exists, proceed without context.
-
-## Step 1: Find today's sessions
-
-```bash
-find "$SESSION_DIR" -name "*.jsonl" -not -name "history.jsonl" -mtime -1 | sort
-```
-
-If zero results: `ls ~/.claude/projects/ | grep <project-keyword>` to find the right dir.
-
-## Step 2: Extract user turns from each session
-
-For each session file, pull only user messages (skip assistant, system, tool_result):
+## Steps 1-2: Collect user turns from every tool
 
 ```bash
-python3 - <<'EOF' <session.jsonl
-import json, sys
-for line in sys.stdin:
-    try:
-        obj = json.loads(line.strip())
-        msg = obj.get("message", obj)
-        if msg.get("role") != "user":
-            continue
-        content = msg.get("content", "")
-        if isinstance(content, list):
-            content = " ".join(
-                b.get("text", "") for b in content
-                if isinstance(b, dict) and b.get("type") == "text"
-            )
-        content = content.strip()
-        if len(content) > 10:
-            print("---")
-            print(content[:800])  # cap very long messages
-    except Exception:
-        pass
-EOF
+~/.agents/bin/session-turns --since 1d
 ```
 
-Run this for each session. Collect all user turns across sessions. Process up to ~15 sessions; skip the rest if there are many.
+This reads Claude Code, Codex CLI, and Kimi Code transcripts for the current
+project and emits a normalized stream, oldest first:
+
+```
+--- [kimi 2026-08-23T15:40]
+We always use pnpm, never npm
+--- [claude 2026-08-23T14:02]
+Don't put API calls in pages. They go in features/*/api/.
+```
+
+Per-tool counts go to stderr. Zero output means no sessions matched — check the
+stderr line before concluding there was no signal. Process up to ~15 sessions'
+worth of turns; if the output is very long, work from the most recent turns.
 
 ## Step 3: Apply the signal classifier
 
@@ -104,9 +86,9 @@ Only REJECT if there is no preceding list to resolve against, or if the referenc
 ## Step 4: Deduplicate
 
 Using what you read in Step 0, drop any entry whose core meaning is already captured in:
-1. CLAUDE.md (project or user level)
-2. MEMORY.md (auto memory entries)
-3. extracted-knowledge.md (previous pipeline runs)
+1. AGENTS.md (and CLAUDE.md, if the project still has one)
+2. MEMORY.md (knowledge store index)
+3. extracted-knowledge.md (previous runs)
 
 Also deduplicate within the extracted batch — keep only one entry per distinct concept.
 
@@ -115,9 +97,9 @@ Also deduplicate within the extracted batch — keep only one entry per distinct
 Each entry gets a destination tag based on its type. This tells `/memory-consolidate` where to route it.
 
 **Destination rules:**
-- Domain rules, preferences, style → `patterns/[domain].md` (memory dir)
+- Domain rules, preferences, style → `patterns/[domain].md` (knowledge store)
 - Repeatable multi-step procedures → `docs/playbooks/[task].md` (project repo)
-- Per-person/service context, state → `entities/[name].md` (memory dir)
+- Per-person/service context, state → `entities/[name].md` (knowledge store)
 - General knowledge the model already knows → `skip`
 - Can't classify → `unsorted`
 
@@ -168,13 +150,13 @@ Show the user: new entries, their destination tags, full resulting file. Ask **A
 
 Remind: "Run `/memory-consolidate` to promote these entries to their destination files."
 
-## What Claude does NOT extract
+## What NOT to extract
 
 Even if it appears in user turns, skip:
-- Task instructions given to Claude ("now implement X", "read this file and tell me")
-- Approval of Claude's suggestions ("looks good", "that's right", "yes exactly")
+- Task instructions given to the agent ("now implement X", "read this file and tell me")
+- Approval of the agent's suggestions ("looks good", "that's right", "yes exactly")
 - Questions ("what does X do?", "how does Y work?")
 - Emotional reactions ("great!", "perfect", "interesting")
-- Status updates about what Claude did ("you just added", "this created")
+- Status updates about what the agent did ("you just added", "this created")
 
 The goal is durable knowledge the user HOLDS, not the conversation flow.

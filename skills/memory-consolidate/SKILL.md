@@ -10,11 +10,11 @@ Weekly maintenance pass over the shadow learning knowledge store. Routes staged 
 ## Step 1: Read all memory files
 
 ```bash
-MEMORY_DIR="$HOME/.claude/projects/$(echo $(pwd) | tr '/' '-')/memory"
+MEMORY_DIR="$(pwd)/.agents/memory"
 ls -laR "$MEMORY_DIR" 2>/dev/null
 ```
 
-Read everything: `MEMORY.md`, `patterns/*.md`, `entities/*.md`, `extracted-knowledge.md`. Also read `docs/playbooks/*.md` in the project repo for overlap detection and consolidation. Also read project CLAUDE.md for overlap detection.
+Read everything: `MEMORY.md`, `patterns/*.md`, `entities/*.md`, `extracted-knowledge.md`. Also read `docs/playbooks/*.md` in the project repo for overlap detection and consolidation. Also read AGENTS.md (and CLAUDE.md, if present) for overlap detection.
 
 ## Step 2: Route staged entries
 
@@ -53,7 +53,7 @@ Analyze all memory content (patterns/, entities/, MEMORY.md) and classify each e
 | **Merge** | Two entries say the same thing differently | "Use pnpm" + "Never use npm" → single entry |
 | **Update** | Entry is partially outdated | "Uses AI SDK v5" when v6 is now in use |
 | **Remove (stale)** | Decision was reversed or fact changed | "Chose SQLite for storage" when project moved to PostgreSQL |
-| **Remove (duplicate)** | Already in CLAUDE.md or another memory file | Memory says "Use Biome" and CLAUDE.md says "Use Biome 2.3" |
+| **Remove (duplicate)** | Already in AGENTS.md or another memory file | Memory says "Use Biome" and AGENTS.md says "Use Biome 2.3" |
 | **Remove (general knowledge)** | Model already knows this | "Use meaningful variable names" |
 | **Move** | In wrong file or in MEMORY.md but belongs in patterns/entities | Detailed rule in MEMORY.md → move to patterns/ |
 | **Promote to playbook** | 2+ procedure entries with overlapping steps | Two "deploy" procedures → merge into docs/playbooks/deploy.md |
