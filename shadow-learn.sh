@@ -8,9 +8,10 @@ REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SKILLS_DIR="$REPO_DIR/skills"
 AGENTS_DIR="$REPO_DIR/agents"
 BOOTSTRAP_PATTERNS_DIR="$REPO_DIR/bootstrap-patterns"
-CLAUDE_SKILLS_DIR="$HOME/.claude/skills"
-PROJECT_SLUG=$(echo "$PWD" | tr '/' '-')
-MEMORY_DIR="$HOME/.claude/projects/$PROJECT_SLUG/memory"
+AGENTS_HOME="$HOME/.agents"
+AGENTS_SKILLS_DIR="$AGENTS_HOME/skills"
+AGENTS_BIN_DIR="$AGENTS_HOME/bin"
+MEMORY_DIR="$PWD/.agents/memory"
 
 # --- Color detection ---
 if [ -t 1 ] && [ "${TERM:-dumb}" != "dumb" ]; then
@@ -34,35 +35,26 @@ else
   days_since() { echo $(( ( $(date +%s) - $(stat -c %Y "$1") ) / 86400 )); }
 fi
 
-# --- Bootstrap snippet ---
-BOOTSTRAP='## Shadow Learning
+# Tools that need skills linked into their own directory.
+# Kimi reads ~/.agents/skills natively and is handled separately.
+detect_tools() {
+  [ -d "$HOME/.claude" ] && echo "claude:$HOME/.claude/skills"
+  [ -d "$HOME/.codex" ]  && echo "codex:$HOME/.codex/skills"
+  return 0
+}
 
-This project uses shadow learning. Learned patterns and entity context are stored in the auto memory directory.
-
-Before work that involves judgment (reviews, architecture, writing):
-- Read `patterns/*.md` files in the memory directory for domain-specific rules
-- Read `entities/*.md` files for context about people, services, or systems
-- Read `docs/playbooks/*.md` in the project repo for repeatable procedures
-
-When the user corrects you, note the correction explicitly — it will be extracted later.'
-
-# --- AGENTS.md snippet (cross-tool) ---
-AGENTS_SNIPPET='# AGENTS.md
-
-This project uses shadow learning for continuous improvement from user corrections.
-
-## Knowledge Store
-
-Before work that involves judgment (reviews, architecture, writing), check:
-- `docs/playbooks/*.md` — repeatable procedures (deploy, setup, release)
-
-When the user corrects your output, note the correction explicitly in your response.
-
-## Conventions
-
-- Hard rules (import order, commit format) belong in linters and hooks, not instructions
-- Memory is for things requiring judgment — tone, structure, quality bar
-- Keep instruction files concise — overly long files degrade agent performance'
+link_skill() {
+  local src="$1" dest="$2"
+  if [ -L "$dest" ]; then
+    ln -sfn "$src" "$dest"
+    return 0
+  fi
+  if [ -e "$dest" ]; then
+    warn "$dest exists and is not a symlink — left alone"
+    return 1
+  fi
+  ln -s "$src" "$dest"
+}
 
 # =============================================================================
 # INIT
@@ -74,36 +66,51 @@ cmd_init() {
   echo -e "${BOLD}Shadow Learning Init${RESET}"
   echo ""
 
-  # 1. Memory directories
-  echo "Memory directory: $MEMORY_DIR"
-  mkdir -p "$MEMORY_DIR/patterns" "$MEMORY_DIR/entities"
+  # Project store
+  echo "Knowledge store: $MEMORY_DIR"
+  mkdir -p "$MEMORY_DIR/patterns" "$MEMORY_DIR/entities" "docs/playbooks"
   ok "patterns/"
   ok "entities/"
-
-  # 2. Playbooks directory (in project repo)
-  mkdir -p "docs/playbooks"
   ok "docs/playbooks/"
   echo ""
 
-  # 3. Copy skills
-  echo "Installing skills to $CLAUDE_SKILLS_DIR"
-  mkdir -p "$CLAUDE_SKILLS_DIR"
-
+  # User-global skills and normalizer
+  echo "Installing to $AGENTS_HOME"
+  mkdir -p "$AGENTS_SKILLS_DIR" "$AGENTS_BIN_DIR"
   if [ ! -d "$SKILLS_DIR/session-knowledge-extract" ]; then
     fail "Skills not found at $SKILLS_DIR"
     echo "  Run this script from the claude-shadow-learn repo directory."
     exit 1
   fi
-
   for skill in session-knowledge-extract memory-consolidate start-research-thread; do
     if [ -d "$SKILLS_DIR/$skill" ]; then
-      cp -r "$SKILLS_DIR/$skill" "$CLAUDE_SKILLS_DIR/"
-      ok "$skill"
+      rm -rf "${AGENTS_SKILLS_DIR:?}/$skill"
+      cp -r "$SKILLS_DIR/$skill" "$AGENTS_SKILLS_DIR/"
+      ok "skills/$skill"
     fi
   done
+  cp "$REPO_DIR/bin/session-turns" "$AGENTS_BIN_DIR/session-turns"
+  chmod +x "$AGENTS_BIN_DIR/session-turns"
+  ok "bin/session-turns"
   echo ""
 
-  # 4. Seed bootstrap pattern files (reference patterns, user-editable after copy)
+  # Link into each installed tool
+  echo "Linking skills into installed tools"
+  while IFS=: read -r tool dir; do
+    [ -n "${tool:-}" ] || continue
+    mkdir -p "$dir"
+    for skill_path in "$AGENTS_SKILLS_DIR"/*/; do
+      [ -d "$skill_path" ] || continue
+      link_skill "${skill_path%/}" "$dir/$(basename "$skill_path")"
+    done
+    ok "$tool → $dir"
+  done < <(detect_tools)
+  if [ -d "$HOME/.kimi-code" ] || [ -d "$HOME/.kimi" ]; then
+    ok "kimi → reads ~/.agents/skills natively (no link needed)"
+  fi
+  echo ""
+
+  # Seed bootstrap patterns
   echo "Seeding bootstrap patterns into $MEMORY_DIR/patterns/"
   if [ -d "$BOOTSTRAP_PATTERNS_DIR" ]; then
     for pattern_file in "$BOOTSTRAP_PATTERNS_DIR"/*.md; do
@@ -120,74 +127,64 @@ cmd_init() {
   fi
   echo ""
 
-  # 5. Copy project subagents (.claude/agents/)
-  if [ -d "$AGENTS_DIR" ] && compgen -G "$AGENTS_DIR/*.md" > /dev/null; then
+  # Project subagents (Claude-only feature)
+  if [ -d "$HOME/.claude" ] && [ -d "$AGENTS_DIR" ] && compgen -G "$AGENTS_DIR/*.md" > /dev/null; then
     echo "Installing project subagents to .claude/agents/"
     mkdir -p ".claude/agents"
     for agent_file in "$AGENTS_DIR"/*.md; do
       [ -e "$agent_file" ] || continue
-      local name
-      name=$(basename "$agent_file")
-      if [ -f ".claude/agents/$name" ]; then
-        ok "$name already present (kept local edits)"
+      local agent_name
+      agent_name=$(basename "$agent_file")
+      if [ -f ".claude/agents/$agent_name" ]; then
+        ok "$agent_name already present (kept local edits)"
       else
-        cp "$agent_file" ".claude/agents/$name"
-        ok "$name"
+        cp "$agent_file" ".claude/agents/$agent_name"
+        ok "$agent_name"
       fi
     done
     echo ""
   fi
 
-  # 6. Bootstrap CLAUDE.md
-  local claude_md="CLAUDE.md"
-  if [ -f "$claude_md" ] && grep -qi "shadow learning" "$claude_md" 2>/dev/null; then
-    ok "Bootstrap already present in $claude_md"
+  # AGENTS.md
+  if [ -f "AGENTS.md" ]; then
+    ok "AGENTS.md already exists (kept local edits)"
   else
-    local do_add=false
-    if $auto_yes; then
-      do_add=true
-    else
-      read -r -p "  Add shadow learning bootstrap to $claude_md? [y/N] " answer
-      [[ "$answer" =~ ^[Yy]$ ]] && do_add=true
-    fi
-
-    if $do_add; then
-      if [ -f "$claude_md" ]; then
-        # Add blank line before snippet if file doesn't end with one
-        [[ -s "$claude_md" && "$(tail -c 1 "$claude_md")" != "" ]] && echo "" >> "$claude_md"
-        echo "" >> "$claude_md"
-      fi
-      echo "$BOOTSTRAP" >> "$claude_md"
-      ok "Bootstrap added to $claude_md"
-    else
-      warn "Skipped. Add the bootstrap snippet manually later."
-      echo "  See GETTING_STARTED.md for the snippet."
-    fi
+    cp "$REPO_DIR/AGENTS.md.template" "AGENTS.md"
+    ok "Created AGENTS.md"
   fi
 
-  # 7. AGENTS.md (cross-tool compatibility)
-  local agents_md="AGENTS.md"
-  if [ -f "$agents_md" ]; then
-    ok "AGENTS.md already exists"
-  else
-    local do_agents=false
-    if $auto_yes; then
-      do_agents=true
-    else
-      read -r -p "  Create AGENTS.md for cross-tool compatibility? [y/N] " answer
-      [[ "$answer" =~ ^[Yy]$ ]] && do_agents=true
-    fi
+  # CLAUDE.md pointer
+  if [ -f "CLAUDE.md" ] && grep -q "AGENTS.md" "CLAUDE.md" 2>/dev/null; then
+    ok "CLAUDE.md already points at AGENTS.md"
+  elif [ -d "$HOME/.claude" ]; then
+    [[ -s "CLAUDE.md" ]] && echo "" >> "CLAUDE.md"
+    echo "See [AGENTS.md](AGENTS.md) for shadow learning instructions." >> "CLAUDE.md"
+    ok "CLAUDE.md points at AGENTS.md"
+  fi
 
-    if $do_agents; then
-      echo "$AGENTS_SNIPPET" > "$agents_md"
-      ok "Created $agents_md"
+  # Privacy choice
+  if ! grep -q '^\.agents/memory/' .gitignore 2>/dev/null; then
+    local share=false
+    if $auto_yes; then
+      share=true
     else
-      warn "Skipped AGENTS.md. Create it manually if you use non-Claude agents."
+      echo ""
+      echo "  .agents/memory/ holds learned patterns and entity notes."
+      echo "  Committing it shares learning with your team; it may contain names"
+      echo "  or client details."
+      read -r -p "  Commit .agents/memory/ to git? [Y/n] " answer
+      [[ ! "$answer" =~ ^[Nn]$ ]] && share=true
+    fi
+    if $share; then
+      ok ".agents/memory/ will be committed (shared with the team)"
+    else
+      echo ".agents/memory/" >> .gitignore
+      ok ".agents/memory/ added to .gitignore (private)"
     fi
   fi
 
   echo ""
-  echo -e "${BOLD}Done.${RESET} Start working. Correct Claude when it gets things wrong."
+  echo -e "${BOLD}Done.${RESET} Start working. Correct the agent when it gets things wrong."
   echo "  Run /session-knowledge-extract at end of day."
 }
 
