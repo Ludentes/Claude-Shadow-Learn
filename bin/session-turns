@@ -114,7 +114,45 @@ def read_codex(root, project, cutoff):
                 yield stamp, text
 
 
-READERS = {"claude": read_claude, "codex": read_codex}
+def read_kimi(root, project, cutoff):
+    index = root / "session_index.jsonl"
+    if not index.is_file():
+        return
+    for entry in read_lines(index):
+        work_dir = entry.get("workDir")
+        session_dir = entry.get("sessionDir")
+        if not work_dir or not session_dir:
+            continue
+        if Path(work_dir) != project:
+            continue
+        # Fixtures use a SESSIONS/ placeholder so they stay machine-independent.
+        if session_dir.startswith("SESSIONS/"):
+            path = root / "sessions" / session_dir[len("SESSIONS/"):] / "wire.jsonl"
+        else:
+            path = Path(session_dir) / "wire.jsonl"
+        if not path.is_file():
+            continue
+        for obj in read_lines(path):
+            message = obj.get("message")
+            if not isinstance(message, dict):
+                continue
+            if message.get("type") != "TurnBegin":
+                continue
+            payload = message.get("payload")
+            if not isinstance(payload, dict):
+                continue
+            text = str(payload.get("user_input", "")).strip()
+            if not text:
+                continue
+            stamp = obj.get("timestamp")
+            if not isinstance(stamp, (int, float)):
+                stamp = path.stat().st_mtime
+            if stamp < cutoff:
+                continue
+            yield stamp, text
+
+
+READERS = {"claude": read_claude, "codex": read_codex, "kimi": read_kimi}
 
 
 def parse_since(value):
@@ -138,9 +176,16 @@ def main():
     project = Path(args.project).resolve()
     tools = sorted(READERS) if args.tool == "auto" else [args.tool]
 
+    kimi_root = home("SL_KIMI_HOME", "~/.kimi-code")
+    if not kimi_root.is_dir():
+        legacy = Path(os.path.expanduser("~/.kimi"))
+        if legacy.is_dir():
+            kimi_root = legacy
+
     roots = {
         "claude": home("SL_CLAUDE_HOME", "~/.claude"),
         "codex": home("SL_CODEX_HOME", "~/.codex"),
+        "kimi": kimi_root,
     }
 
     turns = []

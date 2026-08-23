@@ -1,0 +1,4 @@
+{"type":"metadata","protocol_version":"1.10"}
+{"timestamp":1787000000.0,"message":{"type":"TurnBegin","payload":{"user_input":"Reviews go in Russian, never English."}}}
+{"timestamp":1787000060.0,"message":{"type":"AssistantMessage","payload":{"text":"Understood, Russian it is."}}}
+{"timestamp":1787000120.0,"message":{"type":"TurnBegin","payload":{"user_input":"Use uv for new Python projects."}}}

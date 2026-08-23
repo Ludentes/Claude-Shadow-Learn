@@ -45,3 +45,20 @@ assert_not_contains "$out" "be terse"
 
 it "codex: filters sessions from other projects"
 assert_not_contains "$out" "Belongs to a different project."
+
+out=$(run_st --tool kimi --project /tmp/proj --since 100000d)
+
+it "kimi: extracts TurnBegin user_input"
+assert_contains "$out" "Reviews go in Russian, never English."
+
+it "kimi: extracts every turn in a session"
+assert_contains "$out" "Use uv for new Python projects."
+
+it "kimi: skips assistant messages"
+assert_not_contains "$out" "Understood, Russian it is."
+
+it "kimi: filters sessions from other projects via session_index"
+assert_not_contains "$out" "Kimi turn from a different project."
+
+it "kimi: uses the wire timestamp, not file mtime"
+assert_contains "$out" "--- [kimi 2026-"
