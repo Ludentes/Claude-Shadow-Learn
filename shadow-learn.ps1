@@ -1,13 +1,17 @@
 #Requires -Version 5.1
-# shadow-learn — shadow learning toolkit for Claude Code
+# shadow-learn — shadow learning toolkit for Claude Code, Codex CLI, and Kimi Code
 # https://github.com/Ludentes/Claude-Shadow-Learn
 
 param(
     [Parameter(Position = 0)]
-    [ValidateSet('init', 'health', 'install-hooks', 'help')]
+    [ValidateSet('init', 'health', 'migrate', 'install-hooks', 'help')]
     [string]$Command = 'help',
 
-    [switch]$y
+    [Parameter(Position = 1)]
+    [string]$Target = '',
+
+    [switch]$y,
+    [switch]$Merge
 )
 
 $ErrorActionPreference = 'Stop'
@@ -17,48 +21,33 @@ $RepoDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $SkillsDir = Join-Path $RepoDir 'skills'
 $AgentsDir = Join-Path $RepoDir 'agents'
 $BootstrapPatternsDir = Join-Path $RepoDir 'bootstrap-patterns'
-$ClaudeSkillsDir = Join-Path $HOME '.claude' 'skills'
-$ProjectSlug = (Get-Location).Path -replace '[/\\]', '-'
-$MemoryDir = Join-Path $HOME '.claude' 'projects' $ProjectSlug 'memory'
+$AgentsHome      = Join-Path $HOME '.agents'
+$AgentsSkillsDir = Join-Path $AgentsHome 'skills'
+$AgentsBinDir    = Join-Path $AgentsHome 'bin'
+$MemoryDir       = Join-Path (Get-Location) '.agents\memory'
 
 # --- Helpers ---
 function Write-Ok   { param([string]$Msg) Write-Host "  ✔ $Msg" -ForegroundColor Green }
 function Write-Warn { param([string]$Msg) Write-Host "  ⚠ $Msg" -ForegroundColor Yellow }
 function Write-Fail { param([string]$Msg) Write-Host "  ✘ $Msg" -ForegroundColor Red }
 
-# --- Bootstrap snippet ---
-$Bootstrap = @"
-## Shadow Learning
+# --- Tool detection ---
+# Tools that need skills copied into their own directory.
+# Kimi reads ~/.agents/skills natively and is handled separately.
+function Get-DetectedTools {
+    $found = @()
+    if (Test-Path (Join-Path $HOME '.claude')) {
+        $found += [pscustomobject]@{ Name = 'claude'; Dir = (Join-Path $HOME '.claude' 'skills') }
+    }
+    if (Test-Path (Join-Path $HOME '.codex')) {
+        $found += [pscustomobject]@{ Name = 'codex'; Dir = (Join-Path $HOME '.codex' 'skills') }
+    }
+    return $found
+}
 
-This project uses shadow learning. Learned patterns and entity context are stored in the auto memory directory.
-
-Before work that involves judgment (reviews, architecture, writing):
-- Read ``patterns/*.md`` files in the memory directory for domain-specific rules
-- Read ``entities/*.md`` files for context about people, services, or systems
-- Read ``docs/playbooks/*.md`` in the project repo for repeatable procedures
-
-When the user corrects you, note the correction explicitly — it will be extracted later.
-"@
-
-# --- AGENTS.md snippet (cross-tool) ---
-$AgentsSnippet = @"
-# AGENTS.md
-
-This project uses shadow learning for continuous improvement from user corrections.
-
-## Knowledge Store
-
-Before work that involves judgment (reviews, architecture, writing), check:
-- ``docs/playbooks/*.md`` — repeatable procedures (deploy, setup, release)
-
-When the user corrects your output, note the correction explicitly in your response.
-
-## Conventions
-
-- Hard rules (import order, commit format) belong in linters and hooks, not instructions
-- Memory is for things requiring judgment — tone, structure, quality bar
-- Keep instruction files concise — overly long files degrade agent performance
-"@
+function Test-KimiInstalled {
+    return (Test-Path (Join-Path $HOME '.kimi-code')) -or (Test-Path (Join-Path $HOME '.kimi'))
+}
 
 # =============================================================================
 # INIT
@@ -68,21 +57,20 @@ function Invoke-Init {
     Write-Host ""
     Write-Host ""
 
-    # 1. Memory directories
-    Write-Host "Memory directory: $MemoryDir"
+    # Project store
+    Write-Host "Knowledge store: $MemoryDir"
     New-Item -ItemType Directory -Path (Join-Path $MemoryDir 'patterns') -Force | Out-Null
     New-Item -ItemType Directory -Path (Join-Path $MemoryDir 'entities') -Force | Out-Null
+    New-Item -ItemType Directory -Path 'docs\playbooks' -Force | Out-Null
     Write-Ok 'patterns/'
     Write-Ok 'entities/'
-
-    # 2. Playbooks directory
-    New-Item -ItemType Directory -Path 'docs\playbooks' -Force | Out-Null
     Write-Ok 'docs/playbooks/'
     Write-Host ''
 
-    # 3. Copy skills
-    Write-Host "Installing skills to $ClaudeSkillsDir"
-    New-Item -ItemType Directory -Path $ClaudeSkillsDir -Force | Out-Null
+    # User-global skills and normalizer
+    Write-Host "Installing to $AgentsHome"
+    New-Item -ItemType Directory -Path $AgentsSkillsDir -Force | Out-Null
+    New-Item -ItemType Directory -Path $AgentsBinDir -Force | Out-Null
 
     $extractDir = Join-Path $SkillsDir 'session-knowledge-extract'
     if (-not (Test-Path $extractDir)) {
@@ -94,15 +82,38 @@ function Invoke-Init {
     foreach ($skill in @('session-knowledge-extract', 'memory-consolidate', 'start-research-thread')) {
         $src = Join-Path $SkillsDir $skill
         if (Test-Path $src) {
-            Copy-Item -Path $src -Destination $ClaudeSkillsDir -Recurse -Force
-            Write-Ok $skill
+            $dest = Join-Path $AgentsSkillsDir $skill
+            if (Test-Path $dest) { Remove-Item -Path $dest -Recurse -Force }
+            Copy-Item -Path $src -Destination $AgentsSkillsDir -Recurse -Force
+            Write-Ok "skills/$skill"
         }
     }
+    Copy-Item -Path (Join-Path $RepoDir 'bin\session-turns') -Destination (Join-Path $AgentsBinDir 'session-turns') -Force
+    Write-Ok 'bin/session-turns'
     Write-Host ''
 
-    # 4. Seed bootstrap pattern files
+    # Copy into each installed tool.
+    # Windows gets copies, not symlinks: creating a symlink needs elevation or
+    # developer mode, and a failed link is worse than a copy the user refreshes.
+    Write-Host 'Copying skills into installed tools'
+    foreach ($tool in (Get-DetectedTools)) {
+        New-Item -ItemType Directory -Path $tool.Dir -Force | Out-Null
+        foreach ($skillPath in (Get-ChildItem -Path $AgentsSkillsDir -Directory -ErrorAction SilentlyContinue)) {
+            $dest = Join-Path $tool.Dir $skillPath.Name
+            if (Test-Path $dest) { Remove-Item -Path $dest -Recurse -Force }
+            Copy-Item -Path $skillPath.FullName -Destination $tool.Dir -Recurse -Force
+        }
+        Write-Ok "$($tool.Name) -> $($tool.Dir)"
+    }
+    if (Test-KimiInstalled) {
+        Write-Ok 'kimi -> reads ~/.agents/skills natively (no copy needed)'
+    }
+    Write-Warn 'Windows: skills are copied, not linked. Re-run init after editing a skill.'
+    Write-Host ''
+
+    # Seed bootstrap pattern files
     if (Test-Path $BootstrapPatternsDir) {
-        Write-Host "Seeding bootstrap patterns into $MemoryDir/patterns/"
+        Write-Host "Seeding bootstrap patterns into $MemoryDir\patterns\"
         foreach ($patternFile in (Get-ChildItem -Path $BootstrapPatternsDir -Filter '*.md' -ErrorAction SilentlyContinue)) {
             $dest = Join-Path $MemoryDir 'patterns' $patternFile.Name
             if (Test-Path $dest) {
@@ -115,8 +126,8 @@ function Invoke-Init {
         Write-Host ''
     }
 
-    # 5. Copy project subagents
-    if ((Test-Path $AgentsDir) -and (Get-ChildItem -Path $AgentsDir -Filter '*.md' -ErrorAction SilentlyContinue)) {
+    # Project subagents (Claude-only feature)
+    if ((Test-Path (Join-Path $HOME '.claude')) -and (Test-Path $AgentsDir) -and (Get-ChildItem -Path $AgentsDir -Filter '*.md' -ErrorAction SilentlyContinue)) {
         Write-Host 'Installing project subagents to .claude/agents/'
         New-Item -ItemType Directory -Path '.claude/agents' -Force | Out-Null
         foreach ($agentFile in (Get-ChildItem -Path $AgentsDir -Filter '*.md')) {
@@ -131,61 +142,52 @@ function Invoke-Init {
         Write-Host ''
     }
 
-    # 4. Bootstrap CLAUDE.md
-    $claudeMd = 'CLAUDE.md'
-    if ((Test-Path $claudeMd) -and (Select-String -Path $claudeMd -Pattern 'shadow learning' -Quiet)) {
-        Write-Ok "Bootstrap already present in $claudeMd"
+    # AGENTS.md
+    if (Test-Path 'AGENTS.md') {
+        Write-Ok 'AGENTS.md already exists (kept local edits)'
     }
     else {
-        $doAdd = $false
-        if ($y) {
-            $doAdd = $true
-        }
-        else {
-            $answer = Read-Host '  Add shadow learning bootstrap to CLAUDE.md? [y/N]'
-            if ($answer -match '^[Yy]$') { $doAdd = $true }
-        }
-
-        if ($doAdd) {
-            if (Test-Path $claudeMd) {
-                Add-Content -Path $claudeMd -Value "`n"
-            }
-            Add-Content -Path $claudeMd -Value $Bootstrap
-            Write-Ok "Bootstrap added to $claudeMd"
-        }
-        else {
-            Write-Warn 'Skipped. Add the bootstrap snippet manually later.'
-            Write-Host '  See GETTING_STARTED.md for the snippet.'
-        }
+        Copy-Item -Path (Join-Path $RepoDir 'AGENTS.md.template') -Destination 'AGENTS.md' -Force
+        Write-Ok 'Created AGENTS.md'
     }
 
-    # 5. AGENTS.md (cross-tool compatibility)
-    $agentsMd = 'AGENTS.md'
-    if (Test-Path $agentsMd) {
-        Write-Ok 'AGENTS.md already exists'
+    # CLAUDE.md pointer
+    if ((Test-Path 'CLAUDE.md') -and (Select-String -Path 'CLAUDE.md' -Pattern 'AGENTS.md' -Quiet)) {
+        Write-Ok 'CLAUDE.md already points at AGENTS.md'
     }
-    else {
-        $doAgents = $false
-        if ($y) {
-            $doAgents = $true
-        }
-        else {
-            $answer = Read-Host '  Create AGENTS.md for cross-tool compatibility? [y/N]'
-            if ($answer -match '^[Yy]$') { $doAgents = $true }
-        }
+    elseif (Test-Path (Join-Path $HOME '.claude')) {
+        if (Test-Path 'CLAUDE.md') { Add-Content -Path 'CLAUDE.md' -Value '' }
+        Add-Content -Path 'CLAUDE.md' -Value 'See [AGENTS.md](AGENTS.md) for shadow learning instructions.'
+        Write-Ok 'CLAUDE.md points at AGENTS.md'
+    }
 
-        if ($doAgents) {
-            Set-Content -Path $agentsMd -Value $AgentsSnippet -Encoding UTF8
-            Write-Ok "Created $agentsMd"
+    # Privacy choice
+    $ignored = (Test-Path '.gitignore') -and (Select-String -Path '.gitignore' -Pattern '^\.agents/memory/' -Quiet)
+    if (-not $ignored) {
+        $share = $false
+        if ($y) {
+            $share = $true
         }
         else {
-            Write-Warn 'Skipped AGENTS.md. Create it manually if you use non-Claude agents.'
+            Write-Host ''
+            Write-Host '  .agents/memory/ holds learned patterns and entity notes.'
+            Write-Host '  Committing it shares learning with your team; it may contain names'
+            Write-Host '  or client details.'
+            $answer = Read-Host '  Commit .agents/memory/ to git? [Y/n]'
+            if ($answer -notmatch '^[Nn]$') { $share = $true }
+        }
+        if ($share) {
+            Write-Ok '.agents/memory/ will be committed (shared with the team)'
+        }
+        else {
+            Add-Content -Path '.gitignore' -Value '.agents/memory/'
+            Write-Ok '.agents/memory/ added to .gitignore (private)'
         }
     }
 
     Write-Host ''
     Write-Host 'Done.' -ForegroundColor White
-    Write-Host '  Start working. Correct Claude when it gets things wrong.'
+    Write-Host '  Start working. Correct the agent when it gets things wrong.'
     Write-Host '  Run /session-knowledge-extract at end of day.'
 }
 
@@ -330,23 +332,52 @@ function Invoke-Health {
         $warnCount++
     }
 
-    # 7. Bootstrap
-    if ((Test-Path 'CLAUDE.md') -and (Select-String -Path 'CLAUDE.md' -Pattern 'shadow learning' -Quiet)) {
-        Write-Ok 'Bootstrap in CLAUDE.md'
+    # 7. Instruction file
+    if ((Test-Path 'AGENTS.md') -and (Select-String -Path 'AGENTS.md' -Pattern '\.agents/memory' -Quiet)) {
+        Write-Ok 'AGENTS.md points at the knowledge store'
         $okCount++
     }
     else {
-        Write-Fail 'No bootstrap in CLAUDE.md - run: .\shadow-learn.ps1 init'
+        Write-Fail 'AGENTS.md missing or not pointing at .agents/memory - run: .\shadow-learn.ps1 init'
         $failCount++
     }
 
-    # 8. AGENTS.md (cross-tool)
-    if (Test-Path 'AGENTS.md') {
-        Write-Ok 'AGENTS.md present (cross-tool compatibility)'
+    # 8. Per-tool reachability
+    $anyTool = $false
+    foreach ($tool in (Get-DetectedTools)) {
+        $anyTool = $true
+        if (Test-Path (Join-Path $tool.Dir 'session-knowledge-extract')) {
+            Write-Ok "$($tool.Name): skills installed"
+            $okCount++
+        }
+        else {
+            Write-Warn "$($tool.Name): skills not installed - run: .\shadow-learn.ps1 init"
+            $warnCount++
+        }
+    }
+    if (Test-KimiInstalled) {
+        $anyTool = $true
+        if (Test-Path (Join-Path $AgentsSkillsDir 'session-knowledge-extract')) {
+            Write-Ok 'kimi: skills present in ~/.agents/skills (native)'
+            $okCount++
+        }
+        else {
+            Write-Warn 'kimi: ~/.agents/skills missing - run: .\shadow-learn.ps1 init'
+            $warnCount++
+        }
+    }
+    if (-not $anyTool) { Write-Warn 'No supported agent tool detected' }
+
+    # 9. Transcript reader
+    $turnsPath = Join-Path $AgentsBinDir 'session-turns'
+    if (Test-Path $turnsPath) {
+        $py = if (Get-Command python3 -ErrorAction SilentlyContinue) { 'python3' } else { 'python' }
+        $report = (& $py $turnsPath --since 7d 2>&1 1>$null) -join ' '
+        Write-Ok "session-turns: $report"
         $okCount++
     }
     else {
-        Write-Warn 'No AGENTS.md - run: .\shadow-learn.ps1 init'
+        Write-Warn 'session-turns not installed - run: .\shadow-learn.ps1 init'
         $warnCount++
     }
 
@@ -355,10 +386,104 @@ function Invoke-Health {
 }
 
 # =============================================================================
+# MIGRATE
+# =============================================================================
+function Invoke-Migrate {
+    $slug = (Get-Location).Path -replace '[/\\]', '-'
+    $legacy = Join-Path $HOME '.claude' 'projects' $slug 'memory'
+
+    Write-Host 'Migrate legacy Claude store' -ForegroundColor White
+    Write-Host ''
+
+    if (-not (Test-Path $legacy)) {
+        Write-Fail "No legacy store at $legacy"
+        exit 1
+    }
+
+    $hasContent = (Test-Path $MemoryDir) -and (Get-ChildItem -Path $MemoryDir -Recurse -File -ErrorAction SilentlyContinue)
+    if ($hasContent -and (-not $Merge)) {
+        Write-Fail "$MemoryDir already has content"
+        Write-Host '  Re-run with -Merge to add missing files without overwriting.'
+        exit 1
+    }
+
+    New-Item -ItemType Directory -Path $MemoryDir -Force | Out-Null
+    $copied = 0
+    $kept = 0
+    foreach ($src in (Get-ChildItem -Path $legacy -Recurse -File -Filter '*.md')) {
+        $rel = $src.FullName.Substring($legacy.Length).TrimStart('\', '/')
+        $dest = Join-Path $MemoryDir $rel
+        if (Test-Path $dest) {
+            Write-Ok "$rel already present (kept)"
+            $kept++
+        }
+        else {
+            New-Item -ItemType Directory -Path (Split-Path -Parent $dest) -Force | Out-Null
+            Copy-Item -Path $src.FullName -Destination $dest -Force
+            Write-Ok $rel
+            $copied++
+        }
+    }
+
+    Write-Host ''
+    Write-Host "  $copied copied, $kept kept"
+    Write-Host "  Original left intact at $legacy"
+    Write-Warn 'Review .agents/memory/ for names or client details before committing.'
+}
+
+# =============================================================================
 # INSTALL-HOOKS
 # =============================================================================
 function Invoke-InstallHooks {
-    Write-Host 'Install Session-End Hook' -ForegroundColor White
+    param([string]$Tool = 'claude')
+    switch ($Tool) {
+        'claude' { Install-HooksClaude }
+        'kimi'   { Install-HooksKimi }
+        'codex'  {
+            Write-Warn 'Codex hook installation is not automated.'
+            Write-Host "  Codex's hook schema is not verified against a live install."
+            Write-Host '  See GETTING_STARTED.md for the config.toml block to add by hand.'
+        }
+        default  { Write-Fail "Unknown tool: $Tool (expected claude, kimi, or codex)"; exit 1 }
+    }
+}
+
+function Install-HooksKimi {
+    $config = Join-Path $HOME '.kimi-code' 'config.toml'
+    if (-not (Test-Path $config)) { $config = Join-Path $HOME '.kimi' 'config.toml' }
+    if (-not (Test-Path $config)) {
+        Write-Fail 'No Kimi config found at ~/.kimi-code/config.toml'
+        exit 1
+    }
+    if (Select-String -Path $config -Pattern 'session-knowledge-extract' -Quiet) {
+        Write-Ok "Hook already installed in $config"
+        return
+    }
+
+    # Kimi ships `hooks = []` in the root table. Appending [[hooks]] alongside it
+    # is a duplicate key and makes the TOML invalid, so drop the empty array first.
+    # A non-empty inline array is left alone - merging it is the user's call.
+    $lines = Get-Content $config
+    if ($lines | Where-Object { $_ -match '^\s*hooks\s*=\s*\[\s*\S' }) {
+        Write-Fail "$config already defines a non-empty inline 'hooks' array"
+        Write-Host '  Add this to it by hand, or convert it to [[hooks]] tables first:'
+        Write-Host '    { event = "SessionEnd", command = "kimi -p ..." }'
+        exit 1
+    }
+    $kept = $lines | Where-Object { $_ -notmatch '^\s*hooks\s*=\s*\[\s*\]\s*$' }
+    $block = @(
+        '',
+        '[[hooks]]',
+        'event = "SessionEnd"',
+        'command = "kimi -p ''Run the session-knowledge-extract skill on the session that just ended. Write results without asking.''"'
+    )
+    Set-Content -Path $config -Value ($kept + $block) -Encoding UTF8
+    Write-Ok 'Hook installed: session-knowledge-extract on SessionEnd'
+    Write-Host "  File: $config"
+}
+
+function Install-HooksClaude {
+    Write-Host 'Install Session-End Hook (Claude Code)' -ForegroundColor White
     Write-Host ''
 
     $settingsPath = '.claude\settings.local.json'
@@ -405,14 +530,17 @@ function Invoke-InstallHooks {
 # USAGE
 # =============================================================================
 function Show-Usage {
-    Write-Host 'shadow-learn - shadow learning toolkit for Claude Code'
+    Write-Host 'shadow-learn - shadow learning toolkit for Claude Code, Codex CLI, and Kimi Code'
     Write-Host ''
     Write-Host 'Usage: .\shadow-learn.ps1 <command> [options]'
     Write-Host ''
     Write-Host 'Commands:'
-    Write-Host '  init [-y]        Set up shadow learning for the current project'
-    Write-Host '  health           Check shadow learning status'
-    Write-Host '  install-hooks    Auto-extract knowledge on session end'
+    Write-Host '  init [-y]                Set up shadow learning for the current project'
+    Write-Host '  health                   Check status across all installed tools'
+    Write-Host '  migrate [-Merge]         Move a legacy ~/.claude memory store into .agents/memory/'
+    Write-Host '  install-hooks [TOOL]     Auto-extract on session end (claude|kimi|codex)'
+    Write-Host ''
+    Write-Host 'Supported tools: Claude Code, Codex CLI, Kimi Code'
     Write-Host ''
     Write-Host 'Or just copy the skills manually - see README.md'
 }
@@ -423,6 +551,7 @@ function Show-Usage {
 switch ($Command) {
     'init'          { Invoke-Init }
     'health'        { Invoke-Health }
-    'install-hooks' { Invoke-InstallHooks }
+    'migrate'       { Invoke-Migrate }
+    'install-hooks' { if ($Target) { Invoke-InstallHooks -Tool $Target } else { Invoke-InstallHooks } }
     default         { Show-Usage }
 }
