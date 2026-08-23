@@ -25,8 +25,15 @@ sections to merge into. If nothing exists, proceed without context.
 ## Steps 1-2: Collect user turns from every tool
 
 ```bash
-~/.agents/bin/session-turns --since 1d
+SESSION_TURNS=~/.agents/bin/session-turns
+[ -x "$SESSION_TURNS" ] || SESSION_TURNS="${CLAUDE_PLUGIN_ROOT:-}/bin/session-turns"
+[ -x "$SESSION_TURNS" ] || SESSION_TURNS=$(command -v session-turns)
+"$SESSION_TURNS" --since 1d
 ```
+
+The normalizer ships with this skill. `~/.agents/bin` is where `shadow-learn.sh
+init` puts it; the plugin copy under `CLAUDE_PLUGIN_ROOT` is the fallback when
+the skill was installed as a plugin and no init was run.
 
 This reads Claude Code, Codex CLI, and Kimi Code transcripts for the current
 project and emits a normalized stream, oldest first:

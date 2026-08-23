@@ -1,0 +1,7 @@
+{
+  "name": "shadow-learn-memory",
+  "description": "Shadow learning memory store: extract durable knowledge from your Claude Code, Codex and Kimi sessions, consolidate it into patterns and entities, and scaffold long-horizon research threads. Every write is gated on your confirmation",
+  "version": "1.0.0",
+  "author": { "name": "opcheese" },
+  "keywords": ["memory", "knowledge", "learning", "research", "transcripts"]
+}

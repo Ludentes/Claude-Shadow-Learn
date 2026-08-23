@@ -20,7 +20,19 @@ Validated across 4 real-world reviews where corrections dropped from many → fe
 
 ## Quick Start
 
-### Option A: Use the setup script
+### Option A: Install as a Claude Code plugin
+
+```
+/plugin marketplace add opcheese/skills-catalog
+/plugin install shadow-learn-memory@opcheese-skills
+```
+
+Gets you the three skills and the transcript normalizer, nothing else to run —
+the knowledge store creates itself on first extract. Claude Code only. Use the
+setup script instead if you want Codex CLI or Kimi Code reading the same store,
+or an `AGENTS.md` in the project.
+
+### Option B: Use the setup script
 
 ```bash
 # Linux / macOS
@@ -40,7 +52,7 @@ Run it from the directory of the project you want shadow learning in. It detects
 agent tools you have installed, creates the knowledge store, installs skills and the
 transcript normalizer, and writes an `AGENTS.md`. Pass `-y` to skip prompts.
 
-### Option B: Do it manually
+### Option C: Do it manually
 
 ```bash
 # 1. Install skills and the transcript normalizer
@@ -157,7 +169,7 @@ Only knowledge specific to your team/project. **The test:** would a senior dev a
 |---|---|---|
 | `thesis-review` | `/thesis-review [student]` | Academic review with correction loop ([example](examples/thesis-review/)) |
 
-Learning skills enforce the full cycle: load patterns → apply → get corrected → update patterns. Create your own from `skills/_template/`.
+Learning skills enforce the full cycle: load patterns → apply → get corrected → update patterns. Create your own from `templates/skill/`.
 
 ### Utility Skills (fire-and-forget)
 
@@ -185,11 +197,11 @@ After you've done the same type of work **3+ times** and corrected the agent eac
 # Project-specific skill — Kimi reads .agents/skills natively;
 # link it into the other tools' project skill dirs as needed.
 mkdir -p .agents/skills
-cp -r skills/_template .agents/skills/my-skill
+cp -r templates/skill .agents/skills/my-skill
 # Edit SKILL.md with your domain-specific steps
 
 # Or install it user-globally, for every project
-cp -r skills/_template ~/.agents/skills/my-skill
+cp -r templates/skill ~/.agents/skills/my-skill
 ```
 
 The template has the full skeleton: load → apply → correct → produce → learn. The skill is not the product — the pattern file is. A mature pattern file works even without the skill.

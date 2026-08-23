@@ -31,6 +31,12 @@ docs/playbooks/*.md     ← shadow learning writes (repeatable procedures)
 
 ### Option A: Use the setup script (recommended)
 
+> Claude Code only, and don't need Codex or Kimi sharing the store? `/plugin
+> marketplace add opcheese/skills-catalog` then `/plugin install
+> shadow-learn-memory@opcheese-skills` installs the skills with nothing to run.
+> The setup script below is what gets you the multi-tool store and an `AGENTS.md`.
+
+
 ```bash
 # Linux / macOS
 git clone https://github.com/Ludentes/Claude-Shadow-Learn.git
@@ -463,13 +469,13 @@ After you've done the same type of work **3+ times** and corrected Claude each t
 ```bash
 # Project-specific skill (Kimi reads .agents/skills natively)
 mkdir -p .agents/skills
-cp -r skills/_template .agents/skills/my-skill
+cp -r templates/skill .agents/skills/my-skill
 
 # Edit SKILL.md — fill in your domain-specific steps
 # PATTERN.md and ENTITY.md are templates for your knowledge files
 
 # Or install it for every project
-cp -r skills/_template ~/.agents/skills/my-skill
+cp -r templates/skill ~/.agents/skills/my-skill
 ```
 
 The template has the full skeleton: load → apply → correct → produce → learn. Fill in your domain-specific steps (keep them to 10-15 lines) and point it at your pattern file.
