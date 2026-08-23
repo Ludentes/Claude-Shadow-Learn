@@ -10,7 +10,7 @@
 
 These scenarios describe how shadow learning works in practice using Claude Code's native memory system (MEMORY.md, topic files, skills). Each scenario follows the same cycle: user works → Claude observes patterns → user corrects → knowledge updates → next session starts better.
 
-Unlike Galatea (which has a dedicated runtime, KnowledgeEntry store, and pipeline), these scenarios use only what Claude Code provides: auto memory directory, skills, and CLAUDE.md.
+Unlike Galatea (which has a dedicated runtime, KnowledgeEntry store, and pipeline), these scenarios use only what the agent tools provide: the in-repo knowledge store at `.agents/memory/`, skills, and `AGENTS.md`. They apply equally under Claude Code, Codex CLI, and Kimi Code.
 
 ---
 

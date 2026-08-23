@@ -32,7 +32,7 @@ Optional: student name (e.g., "Anna", "Denis"). If not provided, ask.
 Read ALL of these. They are mandatory context — the entire skill depends on them.
 
 ```bash
-MEMORY_DIR="$HOME/.claude/projects/$(echo $(pwd) | tr '/' '-')/memory"
+MEMORY_DIR="$(pwd)/.agents/memory"
 ```
 
 | File | Purpose | If missing |
