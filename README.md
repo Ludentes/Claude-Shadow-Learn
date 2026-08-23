@@ -27,10 +27,12 @@ Validated across 4 real-world reviews where corrections dropped from many → fe
 /plugin install shadow-learn-memory@opcheese-skills
 ```
 
-Gets you the three skills and the transcript normalizer, nothing else to run —
-the knowledge store creates itself on first extract. Claude Code only. Use the
-setup script instead if you want Codex CLI or Kimi Code reading the same store,
-or an `AGENTS.md` in the project.
+Gets you the three skills and the transcript normalizer. The knowledge store
+creates itself on first extract; the one thing to add by hand is the "Before
+work that involves judgment" block from [`AGENTS.md.template`](AGENTS.md.template)
+into your project's `CLAUDE.md`, which is what makes the agent read the store
+back. Claude Code only — use the setup script if you want Codex CLI or Kimi
+Code reading the same store, and the `AGENTS.md` written for you.
 
 ### Option B: Use the setup script
 
